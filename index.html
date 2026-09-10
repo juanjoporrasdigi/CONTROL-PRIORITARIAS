@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Control de Prioritarias — Replanteos Málaga</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+  :root{
+    --navy:#122236;
+    --navy-2:#1a3049;
+    --paper:#eef1ee;
+    --panel:#ffffff;
+    --line:#d7ddd7;
+    --ink:#182028;
+    --ink-soft:#5b6570;
+    --orange:#d95a1e;
+    --blue:#2e6fa8;
+    --green:#1f7a5c;
+    --gray:#8a92a0;
+    --grid:#24405c;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Archivo',sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  #app{display:flex;flex-direction:column;min-height:100vh;}
+
+  /* ---------- HEADER ---------- */
+  header{
+    background:
+      linear-gradient(var(--navy),var(--navy)),
+      repeating-linear-gradient(0deg, var(--grid) 0, var(--grid) 1px, transparent 1px, transparent 28px),
+      repeating-linear-gradient(90deg, var(--grid) 0, var(--grid) 1px, transparent 1px, transparent 28px);
+    background-blend-mode:normal, soft-light, soft-light;
+    color:#fff;
+    padding:18px 22px 16px;
+    border-bottom:3px solid var(--orange);
+  }
+  .head-row{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;flex-wrap:wrap;}
+  h1{
+    font-size:20px;
+    margin:0 0 3px;
+    font-weight:800;
+    letter-spacing:.2px;
+  }
+  .subtitle{
+    font-size:12.5px;
+    color:#aebccb;
+    font-family:'IBM Plex Mono',monospace;
+    margin:0;
+  }
+  .tech-field{display:flex;flex-direction:column;gap:4px;}
+  .tech-field label{font-size:11px;color:#9fb0c2;font-family:'IBM Plex Mono',monospace;}
+  .tech-field input{
+    background:rgba(255,255,255,.08);
+    border:1px solid rgba(255,255,255,.25);
+    color:#fff;
+    padding:7px 10px;
+    border-radius:3px;
+    font-family:'Archivo',sans-serif;
+    font-size:13.5px;
+    min-width:180px;
+  }
+  .tech-field input::placeholder{color:#8296ab;}
+
+  .stats-bar{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;}
+  .stat-chip{
+    display:flex;align-items:center;gap:7px;
+    background:rgba(255,255,255,.06);
+    border:1px solid rgba(255,255,255,.18);
+    padding:6px 12px;border-radius:3px;
+    font-size:12.5px;
+  }
+  .dot{width:8px;height:8px;border-radius:50%;flex:none;}
+  .stat-chip b{font-family:'IBM Plex Mono',monospace;font-size:13px;}
+
+  /* ---------- MAP ---------- */
+  #map-wrap{position:relative;}
+  #map{height:52vh;min-height:340px;width:100%;}
+  .map-hint{
+    position:absolute;top:10px;left:10px;z-index:500;
+    background:rgba(18,34,54,.92);color:#dfe6ee;
+    font-size:12px;padding:7px 11px;border-radius:3px;
+    font-family:'IBM Plex Mono',monospace;
+    pointer-events:none;
+    border-left:3px solid var(--orange);
+  }
+  .refresh-btn{
+    background:#fff;border:1px solid var(--line);
+    padding:7px 12px;border-radius:3px;font-size:12.5px;
+    cursor:pointer;font-family:'Archivo',sans-serif;font-weight:600;
+    color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.15);
+  }
+  .refresh-btn:hover{background:var(--paper);}
+  .map-controls{
+    position:absolute;top:10px;right:10px;z-index:500;
+    display:flex;gap:8px;
+  }
+
+  /* ---------- PANEL ---------- */
+  #panel{flex:1;padding:16px 20px 60px;max-width:1180px;width:100%;margin:0 auto;}
+  .filters{
+    display:flex;gap:10px;flex-wrap:wrap;align-items:center;
+    margin-bottom:14px;
+  }
+  .filters input, .filters select{
+    padding:8px 10px;border:1px solid var(--line);border-radius:3px;
+    font-family:'Archivo',sans-serif;font-size:13px;background:#fff;color:var(--ink);
+  }
+  .filters input[type=text]{flex:1;min-width:160px;}
+  .export-btn{
+    margin-left:auto;
+    background:var(--navy);color:#fff;border:none;
+    padding:9px 16px;border-radius:3px;font-weight:600;font-size:13px;
+    cursor:pointer;
+  }
+  .export-btn:hover{background:var(--navy-2);}
+  .count-line{font-size:12px;color:var(--ink-soft);margin:0 0 10px;font-family:'IBM Plex Mono',monospace;}
+
+  table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);}
+  thead th{
+    text-align:left;font-size:11.5px;color:var(--ink-soft);
+    font-family:'IBM Plex Mono',monospace;font-weight:500;
+    padding:9px 10px;border-bottom:1px solid var(--line);
+    background:#f6f7f5;
+  }
+  tbody td{padding:10px;border-bottom:1px solid var(--line);font-size:13px;vertical-align:top;}
+  tbody tr:hover{background:#f7faf8;cursor:pointer;}
+  .badge{
+    display:inline-block;padding:2px 8px;border-radius:2px;
+    font-size:11px;font-family:'IBM Plex Mono',monospace;color:#fff;
+  }
+  .obs-cell{max-width:220px;color:var(--ink-soft);}
+  .row-actions{display:flex;gap:8px;}
+  .row-actions button{
+    border:1px solid var(--line);background:#fff;border-radius:3px;
+    padding:4px 8px;font-size:11.5px;cursor:pointer;color:var(--ink-soft);
+  }
+  .row-actions button:hover{border-color:var(--navy);color:var(--navy);}
+  .empty-state{
+    text-align:center;padding:40px 20px;color:var(--ink-soft);
+    font-size:13.5px;border:1px dashed var(--line);background:#fff;
+  }
+
+  /* ---------- MODAL ---------- */
+  .overlay{
+    position:fixed;inset:0;background:rgba(10,18,28,.55);
+    display:none;align-items:center;justify-content:center;z-index:1000;padding:16px;
+  }
+  .overlay.show{display:flex;}
+  .modal{
+    background:#fff;width:100%;max-width:480px;max-height:88vh;overflow:auto;
+    border-radius:5px;border-top:4px solid var(--orange);
+  }
+  .modal-head{padding:16px 20px 12px;border-bottom:1px solid var(--line);}
+  .modal-head h2{margin:0 0 4px;font-size:16px;}
+  .modal-head p{margin:0;font-size:12px;color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;}
+  .modal-body{padding:16px 20px;display:flex;flex-direction:column;gap:12px;}
+  .field label{display:block;font-size:12px;font-weight:600;color:var(--ink-soft);margin-bottom:5px;}
+  .field input, .field select, .field textarea{
+    width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:3px;
+    font-family:'Archivo',sans-serif;font-size:13.5px;color:var(--ink);
+  }
+  .field textarea{resize:vertical;min-height:56px;}
+  .field-row{display:flex;gap:10px;}
+  .field-row .field{flex:1;}
+  .geo-status{font-size:11.5px;color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;}
+  .modal-actions{
+    padding:14px 20px;border-top:1px solid var(--line);
+    display:flex;justify-content:flex-end;gap:10px;
+  }
+  .btn-secondary{background:#fff;border:1px solid var(--line);padding:9px 16px;border-radius:3px;cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-soft);}
+  .btn-primary{background:var(--orange);border:none;color:#fff;padding:9px 18px;border-radius:3px;cursor:pointer;font-size:13px;font-weight:700;}
+  .btn-primary:disabled{opacity:.5;cursor:default;}
+  .btn-danger{background:#fff;border:1px solid #d64545;color:#d64545;padding:9px 14px;border-radius:3px;cursor:pointer;font-size:12.5px;font-weight:600;margin-right:auto;}
+
+  .leaflet-popup-content{font-family:'Archivo',sans-serif;font-size:13px;min-width:190px;}
+  .popup-title{font-weight:700;margin-bottom:2px;}
+  .popup-meta{color:var(--ink-soft);font-size:11.5px;font-family:'IBM Plex Mono',monospace;margin-bottom:8px;}
+  .popup-select{width:100%;padding:5px;border:1px solid var(--line);border-radius:3px;margin-bottom:6px;font-size:12.5px;}
+  .popup-actions{display:flex;gap:6px;}
+  .popup-actions button{flex:1;border:1px solid var(--line);background:#fff;border-radius:3px;padding:5px;font-size:11.5px;cursor:pointer;}
+
+  @media(max-width:640px){
+    #map{height:44vh;}
+    .field-row{flex-direction:column;}
+    thead{display:none;}
+    table, tbody, tr, td{display:block;width:100%;}
+    tbody tr{border:1px solid var(--line);margin-bottom:10px;border-radius:4px;}
+    tbody td{border-bottom:none;padding:6px 12px;}
+    tbody td:first-child{padding-top:10px;font-weight:700;}
+    tbody td:last-child{padding-bottom:10px;}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header>
+    <div class="head-row">
+      <div>
+        <h1>Control de Prioritarias</h1>
+        <p class="subtitle">Costa del Sol · mapa compartido del equipo técnico de replanteos de Málaga</p>
+      </div>
+      <div class="tech-field">
+        <label for="tech-name-input">TÉCNICO</label>
+        <input id="tech-name-input" type="text" placeholder="Tu nombre">
+      </div>
+    </div>
+    <div class="stats-bar" id="stats-bar"></div>
+  </header>
+
+  <div id="map-wrap">
+    <div class="map-hint">Toca el mapa para marcar una obra nueva</div>
+    <div class="map-controls">
+      <button class="refresh-btn" id="locate-btn">📍 Mi ubicación</button>
+      <button class="refresh-btn" id="refresh-btn">↻ Actualizar</button>
+    </div>
+    <div id="map"></div>
+  </div>
+
+  <div id="panel">
+    <div class="filters">
+      <input type="text" id="f-search" placeholder="Buscar por dirección o población...">
+      <select id="f-poblacion"><option value="">Población: todas</option></select>
+      <select id="f-tecnico"><option value="">Técnico: todos</option></select>
+      <select id="f-estado">
+        <option value="">Estado: todos</option>
+        <option value="PENDIENTE">Pendiente</option>
+        <option value="EN ESTUDIO">En estudio</option>
+        <option value="TERMINADO">Terminado / cobertura</option>
+        <option value="DESCARTADA">Descartada</option>
+      </select>
+      <button class="export-btn" id="export-btn">Exportar a Excel</button>
+    </div>
+    <p class="count-line" id="count-line"></p>
+    <div id="table-wrap"></div>
+  </div>
+
+</div>
+
+<!-- MODAL: nueva / editar obra -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 id="modal-title">Nueva obra</h2>
+      <p id="modal-coords" class="mono"></p>
+    </div>
+    <div class="modal-body">
+      <p class="geo-status" id="geo-status"></p>
+      <div class="field-row">
+        <div class="field">
+          <label>Población</label>
+          <input type="text" id="f-input-poblacion">
+        </div>
+        <div class="field">
+          <label>% Construcción</label>
+          <input type="number" id="f-input-pct" min="0" max="100" placeholder="0–100">
+        </div>
+      </div>
+      <div class="field">
+        <label>Dirección</label>
+        <input type="text" id="f-input-direccion">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Técnico</label>
+          <input type="text" id="f-input-tecnico">
+        </div>
+        <div class="field">
+          <label>Estado</label>
+          <select id="f-input-estado">
+            <option value="PENDIENTE">Pendiente</option>
+            <option value="EN ESTUDIO">En estudio</option>
+            <option value="TERMINADO">Terminado / cobertura</option>
+            <option value="DESCARTADA">Descartada</option>
+          </select>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Promotor</label>
+          <input type="text" id="f-input-promotor">
+        </div>
+        <div class="field">
+          <label>Contacto</label>
+          <input type="text" id="f-input-contacto">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Fecha próximo replanteo</label>
+          <input type="date" id="f-input-fecha-replanteo">
+        </div>
+        <div class="field">
+          <label>Entrega de llaves</label>
+          <input type="text" id="f-input-entrega-llaves" placeholder="Fecha, NA, NO DISPONIBLE...">
+        </div>
+      </div>
+      <div class="field">
+        <label>Fecha de última visita</label>
+        <input type="date" id="f-input-fecha-visita">
+      </div>
+      <div class="field">
+        <label>Observaciones</label>
+        <textarea id="f-input-obs"></textarea>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-danger" id="delete-btn" style="display:none;">Eliminar</button>
+      <button class="btn-secondary" id="cancel-btn">Cancelar</button>
+      <button class="btn-primary" id="save-btn">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+(function(){
+  "use strict";
+
+  // ============================================================
+  // CONFIGURACIÓN DE FIREBASE — rellena esto con los datos de TU
+  // proyecto gratuito de Firebase (Firebase Console → Configuración
+  // del proyecto → tus apps → SDK setup and configuration).
+  // ============================================================
+  const firebaseConfig = {
+    apiKey: "AIzaSyB1uFR3p2JuZeZXwpqZ6Ie2JMxJMWCJ-mE",
+    authDomain: "prioritarias-malaga.firebaseapp.com",
+    projectId: "prioritarias-malaga",
+    storageBucket: "prioritarias-malaga.firebasestorage.app",
+    messagingSenderId: "356289109873",
+    appId: "1:356289109873:web:1a0738635cd38b3aa020d0"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+  const obrasCollection = db.collection('obras');
+  // ============================================================
+
+  const ESTADO_COLOR = {
+    "PENDIENTE":"#d95a1e",
+    "EN ESTUDIO":"#2e6fa8",
+    "TERMINADO":"#1f7a5c",
+    "DESCARTADA":"#8a92a0"
+  };
+  const ESTADO_LABEL = {
+    "PENDIENTE":"Pendiente",
+    "EN ESTUDIO":"En estudio",
+    "TERMINADO":"Terminado",
+    "DESCARTADA":"Descartada"
+  };
+
+  let obras = [];          // in-memory list of all shared obras
+  let markersById = {};    // id -> leaflet marker
+  let pendingLatLng = null;
+  let editingId = null;
+  let techName = "";
+
+  const $ = (id) => document.getElementById(id);
+
+  // ---------- MAP ----------
+  const map = L.map('map', {zoomControl:true}).setView([36.62, -4.75], 10); // Costa del Sol, Málaga
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap'
+  }).addTo(map);
+
+  map.on('click', (e) => openModal(e.latlng, null));
+
+  // ---------- STORAGE HELPERS (Firebase Firestore + localStorage) ----------
+  function loadTechName(){
+    const stored = localStorage.getItem('technician-name');
+    if(stored){ techName = stored; $('tech-name-input').value = techName; }
+  }
+  function saveTechName(name){
+    techName = name;
+    localStorage.setItem('technician-name', name);
+  }
+
+  // Escucha en tiempo real: en cuanto un técnico guarda un punto,
+  // todos los demás lo ven aparecer sin recargar ni esperar.
+  function startRealtimeSync(){
+    obrasCollection.onSnapshot((snapshot) => {
+      obras = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .sort((a,b) => (b.creado||"").localeCompare(a.creado||""));
+      renderAll();
+    }, (err) => {
+      console.error("Error de sincronización con Firebase", err);
+      alert("No se pudo conectar con la base de datos compartida. Revisa la configuración de Firebase (firebaseConfig) en el código.");
+    });
+  }
+
+  async function saveObra(obra){
+    try{
+      await obrasCollection.doc(obra.id).set(obra);
+      return true;
+    }catch(e){
+      console.error(e);
+      alert("Error guardando la obra. Revisa tu conexión o las reglas de Firestore.");
+      return false;
+    }
+  }
+
+  async function deleteObraById(id){
+    try{
+      await obrasCollection.doc(id).delete();
+      return true;
+    }catch(e){
+      console.error(e);
+      return false;
+    }
+  }
+
+  // ---------- REVERSE GEOCODE ----------
+  async function reverseGeocode(lat, lon){
+    try{
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 4000);
+      const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`;
+      const res = await fetch(url, { headers: { 'Accept-Language': 'es' }, signal: controller.signal });
+      clearTimeout(timeout);
+      if(!res.ok) throw new Error("geocode failed");
+      const data = await res.json();
+      const a = data.address || {};
+      const calle = a.road || a.pedestrian || a.footway || "";
+      const numero = a.house_number || "";
+      const poblacion = a.town || a.village || a.city || a.municipality || "";
+      const direccion = [calle, numero].filter(Boolean).join(" ");
+      return { direccion: direccion || data.display_name || "", poblacion };
+    }catch(e){
+      return null;
+    }
+  }
+
+  // ---------- MODAL ----------
+  function resetForm(){
+    $('f-input-poblacion').value = "";
+    $('f-input-pct').value = "";
+    $('f-input-direccion').value = "";
+    $('f-input-tecnico').value = techName || "";
+    $('f-input-estado').value = "PENDIENTE";
+    $('f-input-promotor').value = "";
+    $('f-input-contacto').value = "";
+    $('f-input-fecha-replanteo').value = "";
+    $('f-input-entrega-llaves').value = "";
+    $('f-input-fecha-visita').value = new Date().toISOString().slice(0,10);
+    $('f-input-obs').value = "";
+  }
+
+  async function openModal(latlng, existing){
+    editingId = existing ? existing.id : null;
+    pendingLatLng = latlng;
+    resetForm();
+    $('delete-btn').style.display = existing ? '' : 'none';
+    $('modal-title').textContent = existing ? "Editar obra" : "Nueva obra";
+    $('modal-coords').textContent = `${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)}`;
+    $('geo-status').textContent = "";
+    $('overlay').classList.add('show');
+
+    if(existing){
+      $('f-input-poblacion').value = existing.poblacion || "";
+      $('f-input-pct').value = existing.pct || "";
+      $('f-input-direccion').value = existing.direccion || "";
+      $('f-input-tecnico').value = existing.tecnico || "";
+      $('f-input-estado').value = existing.estado || "PENDIENTE";
+      $('f-input-promotor').value = existing.promotor || "";
+      $('f-input-contacto').value = existing.contacto || "";
+      $('f-input-fecha-replanteo').value = existing.fechaReplanteo || "";
+      $('f-input-entrega-llaves').value = existing.entregaLlaves || "";
+      $('f-input-fecha-visita').value = existing.fechaVisita || "";
+      $('f-input-obs').value = existing.observaciones || "";
+    } else {
+      $('geo-status').textContent = "Buscando dirección...";
+      const geo = await reverseGeocode(latlng.lat, latlng.lng);
+      if(geo && geo.direccion){
+        $('f-input-direccion').value = geo.direccion;
+        $('f-input-poblacion').value = geo.poblacion;
+        $('geo-status').textContent = "Dirección obtenida automáticamente — revísala antes de guardar.";
+      } else {
+        $('geo-status').textContent = "La búsqueda automática de dirección no está disponible aquí. Escríbela a mano (las coordenadas ya han quedado registradas).";
+      }
+    }
+  }
+
+  function closeModal(){
+    $('overlay').classList.remove('show');
+    editingId = null;
+    pendingLatLng = null;
+  }
+
+  $('cancel-btn').addEventListener('click', closeModal);
+
+  $('save-btn').addEventListener('click', async () => {
+    const direccion = $('f-input-direccion').value.trim();
+    if(!direccion){ alert("Introduce al menos la dirección."); return; }
+    const name = $('tech-name-input').value.trim();
+    if(name && name !== techName) saveTechName(name);
+
+    $('save-btn').disabled = true;
+    const now = new Date();
+    const obra = {
+      id: editingId || ('o' + Date.now() + Math.random().toString(36).slice(2,7)),
+      lat: pendingLatLng.lat,
+      lon: pendingLatLng.lng,
+      poblacion: $('f-input-poblacion').value.trim(),
+      direccion,
+      pct: $('f-input-pct').value ? Number($('f-input-pct').value) : null,
+      tecnico: $('f-input-tecnico').value.trim(),
+      estado: $('f-input-estado').value,
+      promotor: $('f-input-promotor').value.trim(),
+      contacto: $('f-input-contacto').value.trim(),
+      fechaReplanteo: $('f-input-fecha-replanteo').value,
+      entregaLlaves: $('f-input-entrega-llaves').value.trim(),
+      fechaVisita: $('f-input-fecha-visita').value,
+      observaciones: $('f-input-obs').value.trim(),
+      creado: editingId ? (obras.find(o=>o.id===editingId)?.creado || now.toISOString()) : now.toISOString()
+    };
+    const ok = await saveObra(obra);
+    $('save-btn').disabled = false;
+    if(ok){
+      const idx = obras.findIndex(o => o.id === obra.id);
+      if(idx >= 0) obras[idx] = obra; else obras.unshift(obra);
+      renderAll();
+      closeModal();
+    }
+  });
+
+  $('delete-btn').addEventListener('click', async () => {
+    if(!editingId) return;
+    if(!confirm("¿Eliminar esta obra del mapa y del listado?")) return;
+    const ok = await deleteObraById(editingId);
+    if(ok){
+      obras = obras.filter(o => o.id !== editingId);
+      renderAll();
+      closeModal();
+    }
+  });
+
+  // ---------- RENDER ----------
+  function renderMarkers(){
+    Object.values(markersById).forEach(m => map.removeLayer(m));
+    markersById = {};
+    obras.forEach(obra => {
+      const color = ESTADO_COLOR[obra.estado] || ESTADO_COLOR.PENDIENTE;
+      const marker = L.circleMarker([obra.lat, obra.lon], {
+        radius: 8, color: '#fff', weight: 2, fillColor: color, fillOpacity: 1
+      }).addTo(map);
+
+      const popupDiv = document.createElement('div');
+      popupDiv.innerHTML = `
+        <div class="popup-title">${escapeHtml(obra.direccion || 'Sin dirección')}</div>
+        <div class="popup-meta">${escapeHtml(obra.poblacion || '')} · ${escapeHtml(obra.tecnico || 'sin técnico')}</div>
+        <select class="popup-select" data-id="${obra.id}">
+          <option value="PENDIENTE" ${obra.estado==='PENDIENTE'?'selected':''}>Pendiente</option>
+          <option value="EN ESTUDIO" ${obra.estado==='EN ESTUDIO'?'selected':''}>En estudio</option>
+          <option value="TERMINADO" ${obra.estado==='TERMINADO'?'selected':''}>Terminado</option>
+          <option value="DESCARTADA" ${obra.estado==='DESCARTADA'?'selected':''}>Descartada</option>
+        </select>
+        <div class="popup-actions">
+          <button data-action="edit" data-id="${obra.id}">Editar</button>
+        </div>
+      `;
+      popupDiv.querySelector('select').addEventListener('change', async (ev) => {
+        const newEstado = ev.target.value;
+        const updated = {...obra, estado:newEstado};
+        const ok = await saveObra(updated);
+        if(ok){
+          const idx = obras.findIndex(o=>o.id===obra.id);
+          obras[idx] = updated;
+          renderAll();
+        }
+      });
+      popupDiv.querySelector('[data-action="edit"]').addEventListener('click', () => {
+        map.closePopup();
+        openModal(L.latLng(obra.lat, obra.lon), obra);
+      });
+
+      marker.bindPopup(popupDiv);
+      markersById[obra.id] = marker;
+    });
+  }
+
+  function escapeHtml(s){
+    return String(s||"").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function renderStats(){
+    const counts = {PENDIENTE:0,"EN ESTUDIO":0,TERMINADO:0,DESCARTADA:0};
+    obras.forEach(o => { if(counts[o.estado] !== undefined) counts[o.estado]++; });
+    const bar = $('stats-bar');
+    bar.innerHTML = `
+      <div class="stat-chip"><span class="dot" style="background:${ESTADO_COLOR.PENDIENTE}"></span>Pendiente <b>${counts.PENDIENTE}</b></div>
+      <div class="stat-chip"><span class="dot" style="background:${ESTADO_COLOR['EN ESTUDIO']}"></span>En estudio <b>${counts['EN ESTUDIO']}</b></div>
+      <div class="stat-chip"><span class="dot" style="background:${ESTADO_COLOR.TERMINADO}"></span>Terminado <b>${counts.TERMINADO}</b></div>
+      <div class="stat-chip"><span class="dot" style="background:${ESTADO_COLOR.DESCARTADA}"></span>Descartada <b>${counts.DESCARTADA}</b></div>
+      <div class="stat-chip">Total <b>${obras.length}</b></div>
+    `;
+  }
+
+  function populateFilterOptions(){
+    const poblaciones = [...new Set(obras.map(o=>o.poblacion).filter(Boolean))].sort();
+    const tecnicos = [...new Set(obras.map(o=>o.tecnico).filter(Boolean))].sort();
+    const selP = $('f-poblacion'), selT = $('f-tecnico');
+    const curP = selP.value, curT = selT.value;
+    selP.innerHTML = '<option value="">Población: todas</option>' + poblaciones.map(p=>`<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('');
+    selT.innerHTML = '<option value="">Técnico: todos</option>' + tecnicos.map(t=>`<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+    selP.value = curP; selT.value = curT;
+  }
+
+  function getFiltered(){
+    const q = $('f-search').value.trim().toLowerCase();
+    const fp = $('f-poblacion').value;
+    const ft = $('f-tecnico').value;
+    const fe = $('f-estado').value;
+    return obras.filter(o => {
+      if(fp && o.poblacion !== fp) return false;
+      if(ft && o.tecnico !== ft) return false;
+      if(fe && o.estado !== fe) return false;
+      if(q){
+        const hay = `${o.direccion||''} ${o.poblacion||''}`.toLowerCase();
+        if(!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }
+
+  function renderTable(){
+    const list = getFiltered();
+    $('count-line').textContent = `${list.length} obra${list.length===1?'':'s'} mostradas de ${obras.length} en total`;
+    const wrap = $('table-wrap');
+    if(list.length === 0){
+      wrap.innerHTML = `<div class="empty-state">Aún no hay obras marcadas. Toca el mapa para añadir la primera.</div>`;
+      return;
+    }
+    const rows = list.map(o => `
+      <tr data-id="${o.id}">
+        <td>${escapeHtml(o.poblacion||'—')}</td>
+        <td>${escapeHtml(o.direccion||'—')}</td>
+        <td><span class="badge" style="background:${ESTADO_COLOR[o.estado]}">${ESTADO_LABEL[o.estado]||o.estado}</span></td>
+        <td>${escapeHtml(o.tecnico||'—')}</td>
+        <td class="mono">${o.creado ? new Date(o.creado).toLocaleDateString('es-ES') : '—'}</td>
+        <td class="obs-cell">${escapeHtml(o.observaciones||'')}</td>
+        <td><div class="row-actions">
+          <button data-action="ver">Ver en mapa</button>
+          <button data-action="editar">Editar</button>
+        </div></td>
+      </tr>
+    `).join('');
+    wrap.innerHTML = `
+      <table>
+        <thead><tr>
+          <th>Población</th><th>Dirección</th><th>Estado</th><th>Técnico</th><th>Fecha</th><th>Observaciones</th><th></th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+    wrap.querySelectorAll('button[data-action="ver"]').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{
+        const id = e.target.closest('tr').dataset.id;
+        const o = obras.find(x=>x.id===id);
+        if(o){ map.setView([o.lat,o.lon], 17); markersById[id]?.openPopup(); window.scrollTo({top:0, behavior:'smooth'}); }
+      });
+    });
+    wrap.querySelectorAll('button[data-action="editar"]').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{
+        const id = e.target.closest('tr').dataset.id;
+        const o = obras.find(x=>x.id===id);
+        if(o) openModal(L.latLng(o.lat,o.lon), o);
+      });
+    });
+  }
+
+  function renderAll(){
+    renderStats();
+    populateFilterOptions();
+    renderMarkers();
+    renderTable();
+  }
+
+  ['f-search','f-poblacion','f-tecnico','f-estado'].forEach(id=>{
+    $(id).addEventListener('input', renderTable);
+    $(id).addEventListener('change', renderTable);
+  });
+
+  $('tech-name-input').addEventListener('change', (e)=> saveTechName(e.target.value.trim()));
+
+  $('refresh-btn').addEventListener('click', () => {
+    // Con Firebase los datos ya llegan en tiempo real; este botón
+    // solo confirma visualmente que la conexión sigue activa.
+    const btn = $('refresh-btn');
+    const original = btn.textContent;
+    btn.textContent = "✓ Al día";
+    setTimeout(() => btn.textContent = original, 1200);
+  });
+
+  let userLocationMarker = null;
+  $('locate-btn').addEventListener('click', () => {
+    if(!navigator.geolocation){
+      alert("Este entorno no permite acceder a la ubicación del navegador. Marca el punto directamente tocando el mapa donde estés.");
+      return;
+    }
+    const btn = $('locate-btn');
+    const original = btn.textContent;
+    btn.textContent = "Buscando...";
+    const timeout = setTimeout(() => {
+      btn.textContent = original;
+      alert("No se ha podido obtener tu ubicación en este entorno (puede estar bloqueada por permisos). Marca el punto directamente tocando el mapa donde estés.");
+    }, 6000);
+    try{
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          clearTimeout(timeout);
+          btn.textContent = original;
+          const {latitude, longitude} = pos.coords;
+          map.setView([latitude, longitude], 16);
+          if(userLocationMarker) map.removeLayer(userLocationMarker);
+          userLocationMarker = L.circleMarker([latitude, longitude], {
+            radius: 9, color:'#fff', weight:3, fillColor:'#2e6fa8', fillOpacity:1
+          }).addTo(map).bindPopup("Tu ubicación actual").openPopup();
+        },
+        (err) => {
+          clearTimeout(timeout);
+          btn.textContent = original;
+          let msg = "No se pudo obtener tu ubicación. Marca el punto directamente tocando el mapa donde estés.";
+          if(err.code === err.PERMISSION_DENIED) msg = "Este entorno ha bloqueado el permiso de ubicación. Marca el punto directamente tocando el mapa donde estés.";
+          alert(msg);
+        },
+        { enableHighAccuracy:true, timeout:5500 }
+      );
+    }catch(e){
+      clearTimeout(timeout);
+      btn.textContent = original;
+      alert("La ubicación no está disponible en este entorno. Marca el punto directamente tocando el mapa donde estés.");
+    }
+  });
+
+  const MESES_ES = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+  function formatFechaISO(iso){
+    if(!iso) return "";
+    const [y,m,d] = iso.split('-');
+    return `${d}/${m}/${y}`;
+  }
+  function mesDeFecha(iso){
+    if(!iso) return "";
+    const m = Number(iso.split('-')[1]);
+    return MESES_ES[m-1] || "";
+  }
+
+  // ---------- EXPORT ----------
+  function buildWorkbookBlob(){
+    const list = getFiltered().length ? getFiltered() : obras;
+    const rows = list.map(o => ({
+      "POBLACION": o.poblacion || "",
+      "GESCAL26": "",
+      "DIRECCION": o.direccion || "",
+      "% CONSTRUCCION": o.pct != null ? o.pct/100 : "",
+      "MES FECHA PROXIMO REPLANTEO": mesDeFecha(o.fechaReplanteo),
+      "FECHA PROXIMO REPLANTEO": formatFechaISO(o.fechaReplanteo),
+      "ENTREGA DE LLAVES": o.entregaLlaves || "",
+      "PROMOTOR": o.promotor || "",
+      "LINK DE GOOGLE": `${o.lat}, ${o.lon}`,
+      "CONTACTO": o.contacto || "",
+      "OBSERVACIONES": o.observaciones || "",
+      "ESTADO": o.estado || "",
+      "FECHA DE ULTIMA VISITA": o.fechaVisita ? formatFechaISO(o.fechaVisita) : (o.creado ? new Date(o.creado).toLocaleDateString('es-ES') : ""),
+      "TECNICO/S": o.tecnico || ""
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws['!cols'] = [
+      {wch:16},{wch:14},{wch:34},{wch:12},{wch:14},{wch:14},{wch:14},
+      {wch:18},{wch:26},{wch:14},{wch:34},{wch:14},{wch:16},{wch:16}
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "OBRAS DETECTADAS");
+    const stamp = new Date().toISOString().slice(0,10);
+    const quien = (techName || $('tech-name-input').value.trim() || 'sin nombre').replace(/[\\/:*?"<>|]/g, '').trim();
+    const filename = `Control de Prioritarias ${stamp} ${quien}.xlsx`;
+    const wbout = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+    const blob = new Blob([wbout], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    return {blob, filename};
+  }
+
+  $('export-btn').addEventListener('click', async () => {
+    const {blob, filename} = buildWorkbookBlob();
+    const file = new File([blob], filename, {type: blob.type});
+
+    // Si el dispositivo soporta el menú nativo de "Compartir/Guardar en",
+    // se abre ese selector para que elijas la carpeta o app de destino cada vez.
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      try{
+        await navigator.share({
+          files:[file],
+          title: filename,
+          text: 'Listado de obras exportado desde el mapa'
+        });
+        return;
+      }catch(err){
+        if(err && err.name === 'AbortError') return; // el usuario canceló el selector
+        // si falla por otro motivo, seguimos con la descarga normal
+      }
+    }
+
+    // Descarga estándar (el navegador decide la carpeta, salvo que tengas
+    // activado "Preguntar dónde guardar cada archivo" en su configuración)
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+
+  // ---------- INIT ----------
+  (function init(){
+    loadTechName();
+    renderAll(); // pinta el estado vacío mientras llega la primera respuesta de Firebase
+    startRealtimeSync();
+  })();
+
+})();
+</script>
+</body>
+</html>
