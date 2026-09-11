@@ -106,6 +106,20 @@
     position:absolute;top:10px;right:10px;z-index:500;
     display:flex;gap:8px;
   }
+  .map-search{
+    position:absolute;top:52px;left:10px;right:10px;z-index:500;
+    display:flex;gap:6px;max-width:420px;
+  }
+  .map-search input{
+    flex:1;padding:8px 10px;border:1px solid var(--line);border-radius:3px;
+    font-family:'Archivo',sans-serif;font-size:13px;
+    box-shadow:0 1px 3px rgba(0,0,0,.15);
+  }
+  .map-search button{
+    background:var(--navy);color:#fff;border:none;padding:8px 14px;
+    border-radius:3px;font-size:12.5px;font-weight:600;cursor:pointer;
+  }
+  .map-search button:hover{background:var(--navy-2);}
 
   /* ---------- PANEL ---------- */
   #panel{flex:1;padding:16px 20px 60px;max-width:1180px;width:100%;margin:0 auto;}
@@ -125,6 +139,18 @@
     cursor:pointer;
   }
   .export-btn:hover{background:var(--navy-2);}
+  .date-filter-label{
+    display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-soft);
+    font-family:'IBM Plex Mono',monospace;
+  }
+  .date-filter-label input{
+    padding:7px 8px;border:1px solid var(--line);border-radius:3px;font-size:13px;
+  }
+  .btn-secondary-flat{
+    border:1px solid var(--line);background:#fff;border-radius:3px;
+    padding:6px 10px;font-size:12px;cursor:pointer;color:var(--ink-soft);
+  }
+  .btn-secondary-flat:hover{border-color:var(--navy);color:var(--navy);}
   .count-line{font-size:12px;color:var(--ink-soft);margin:0 0 10px;font-family:'IBM Plex Mono',monospace;}
 
   table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);}
@@ -226,6 +252,10 @@
       <button class="refresh-btn" id="locate-btn">📍 Mi ubicación</button>
       <button class="refresh-btn" id="refresh-btn">↻ Actualizar</button>
     </div>
+    <div class="map-search">
+      <input type="text" id="map-search-input" placeholder="Buscar dirección o coordenadas (36.50, -4.75)...">
+      <button id="map-search-btn">Buscar</button>
+    </div>
     <div id="map"></div>
   </div>
 
@@ -241,7 +271,12 @@
         <option value="TERMINADO">Terminado / cobertura</option>
         <option value="DESCARTADA">Descartada</option>
       </select>
-      <button class="export-btn" id="export-btn">Exportar a Excel</button>
+      <label class="date-filter-label">Día:
+        <input type="date" id="f-fecha">
+      </label>
+      <button class="btn-secondary-flat" id="f-fecha-clear" title="Quitar filtro de día">✕</button>
+      <button class="export-btn" id="share-btn">Compartir</button>
+      <button class="export-btn" id="export-btn">Descargar Excel</button>
     </div>
     <p class="count-line" id="count-line"></p>
     <div id="table-wrap"></div>
@@ -264,8 +299,18 @@
           <input type="text" id="f-input-poblacion">
         </div>
         <div class="field">
+          <label>Provincia</label>
+          <input type="text" id="f-input-provincia" placeholder="Málaga">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
           <label>% Construcción</label>
           <input type="number" id="f-input-pct" min="0" max="100" placeholder="0–100">
+        </div>
+        <div class="field">
+          <label>GESCAL26</label>
+          <input type="text" id="f-input-gescal26" placeholder="Código interno">
         </div>
       </div>
       <div class="field">
@@ -378,6 +423,50 @@
 
   map.on('click', (e) => openModal(e.latlng, null));
 
+  // ---------- BUSCADOR DE UBICACIÓN (dirección o coordenadas) ----------
+  let searchMarker = null;
+  async function buscarUbicacion(){
+    const raw = $('map-search-input').value.trim();
+    if(!raw) return;
+    const btn = $('map-search-btn');
+    const original = btn.textContent;
+
+    // ¿Son coordenadas del tipo "36.5, -4.75"?
+    const coordMatch = raw.match(/^\s*(-?\d{1,3}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)\s*$/);
+    if(coordMatch){
+      const lat = parseFloat(coordMatch[1]), lon = parseFloat(coordMatch[2]);
+      map.setView([lat, lon], 17);
+      if(searchMarker) map.removeLayer(searchMarker);
+      searchMarker = L.circleMarker([lat, lon], {radius:9, color:'#fff', weight:3, fillColor:'#d95a1e', fillOpacity:1}).addTo(map).bindPopup("Ubicación buscada").openPopup();
+      return;
+    }
+
+    // Si no, se busca como dirección de texto
+    btn.disabled = true; btn.textContent = "Buscando...";
+    try{
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 6000);
+      const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(raw)}&limit=1&countrycodes=es`;
+      const res = await fetch(url, { headers:{'Accept-Language':'es'}, signal: controller.signal });
+      clearTimeout(timeout);
+      const data = await res.json();
+      if(data && data[0]){
+        const lat = parseFloat(data[0].lat), lon = parseFloat(data[0].lon);
+        map.setView([lat, lon], 17);
+        if(searchMarker) map.removeLayer(searchMarker);
+        searchMarker = L.circleMarker([lat, lon], {radius:9, color:'#fff', weight:3, fillColor:'#d95a1e', fillOpacity:1}).addTo(map).bindPopup(data[0].display_name).openPopup();
+      } else {
+        alert("No se ha encontrado esa dirección. Prueba a ser más concreto (calle, número, población) o escribe las coordenadas directamente (ej: 36.50, -4.75).");
+      }
+    }catch(e){
+      alert("No se pudo buscar esa dirección en este momento. Prueba con coordenadas (ej: 36.50, -4.75) o inténtalo de nuevo.");
+    }finally{
+      btn.disabled = false; btn.textContent = original;
+    }
+  }
+  $('map-search-btn').addEventListener('click', buscarUbicacion);
+  $('map-search-input').addEventListener('keydown', (e) => { if(e.key === 'Enter') buscarUbicacion(); });
+
   // ---------- STORAGE HELPERS (Firebase Firestore + localStorage) ----------
   function loadTechName(){
     const stored = localStorage.getItem('technician-name');
@@ -437,8 +526,9 @@
       const calle = a.road || a.pedestrian || a.footway || "";
       const numero = a.house_number || "";
       const poblacion = a.town || a.village || a.city || a.municipality || "";
+      const provincia = a.state || a.province || "";
       const direccion = [calle, numero].filter(Boolean).join(" ");
-      return { direccion: direccion || data.display_name || "", poblacion };
+      return { direccion: direccion || data.display_name || "", poblacion, provincia };
     }catch(e){
       return null;
     }
@@ -447,7 +537,9 @@
   // ---------- MODAL ----------
   function resetForm(){
     $('f-input-poblacion').value = "";
+    $('f-input-provincia').value = "Málaga";
     $('f-input-pct').value = "";
+    $('f-input-gescal26').value = "";
     $('f-input-direccion').value = "";
     $('f-input-tecnico').value = techName || "";
     $('f-input-estado').value = "PENDIENTE";
@@ -471,7 +563,9 @@
 
     if(existing){
       $('f-input-poblacion').value = existing.poblacion || "";
+      $('f-input-provincia').value = existing.provincia || "Málaga";
       $('f-input-pct').value = existing.pct || "";
+      $('f-input-gescal26').value = existing.gescal26 || "";
       $('f-input-direccion').value = existing.direccion || "";
       $('f-input-tecnico').value = existing.tecnico || "";
       $('f-input-estado').value = existing.estado || "PENDIENTE";
@@ -487,6 +581,7 @@
       if(geo && geo.direccion){
         $('f-input-direccion').value = geo.direccion;
         $('f-input-poblacion').value = geo.poblacion;
+        if(geo.provincia) $('f-input-provincia').value = geo.provincia;
         $('geo-status').textContent = "Dirección obtenida automáticamente — revísala antes de guardar.";
       } else {
         $('geo-status').textContent = "La búsqueda automática de dirección no está disponible aquí. Escríbela a mano (las coordenadas ya han quedado registradas).";
@@ -515,8 +610,10 @@
       lat: pendingLatLng.lat,
       lon: pendingLatLng.lng,
       poblacion: $('f-input-poblacion').value.trim(),
+      provincia: $('f-input-provincia').value.trim(),
       direccion,
       pct: $('f-input-pct').value ? Number($('f-input-pct').value) : null,
+      gescal26: $('f-input-gescal26').value.trim(),
       tecnico: $('f-input-tecnico').value.trim(),
       estado: $('f-input-estado').value,
       promotor: $('f-input-promotor').value.trim(),
@@ -624,10 +721,15 @@
     const fp = $('f-poblacion').value;
     const ft = $('f-tecnico').value;
     const fe = $('f-estado').value;
+    const fd = $('f-fecha').value; // yyyy-mm-dd, filtra por día de creación
     return obras.filter(o => {
       if(fp && o.poblacion !== fp) return false;
       if(ft && o.tecnico !== ft) return false;
       if(fe && o.estado !== fe) return false;
+      if(fd){
+        const diaObra = o.creado ? o.creado.slice(0,10) : "";
+        if(diaObra !== fd) return false;
+      }
       if(q){
         const hay = `${o.direccion||''} ${o.poblacion||''}`.toLowerCase();
         if(!hay.includes(q)) return false;
@@ -689,10 +791,11 @@
     renderTable();
   }
 
-  ['f-search','f-poblacion','f-tecnico','f-estado'].forEach(id=>{
+  ['f-search','f-poblacion','f-tecnico','f-estado','f-fecha'].forEach(id=>{
     $(id).addEventListener('input', renderTable);
     $(id).addEventListener('change', renderTable);
   });
+  $('f-fecha-clear').addEventListener('click', () => { $('f-fecha').value = ""; renderTable(); });
 
   $('tech-name-input').addEventListener('change', (e)=> saveTechName(e.target.value.trim()));
 
@@ -763,9 +866,10 @@
     const list = getFiltered().length ? getFiltered() : obras;
     const rows = list.map(o => ({
       "POBLACION": o.poblacion || "",
-      "GESCAL26": "",
+      "PROVINCIA": o.provincia || "",
+      "GESCAL26": o.gescal26 || "",
       "DIRECCION": o.direccion || "",
-      "% CONSTRUCCION": o.pct != null ? o.pct/100 : "",
+      "% CONSTRUCCION": o.pct != null ? `${o.pct}%` : "",
       "MES FECHA PROXIMO REPLANTEO": mesDeFecha(o.fechaReplanteo),
       "FECHA PROXIMO REPLANTEO": formatFechaISO(o.fechaReplanteo),
       "ENTREGA DE LLAVES": o.entregaLlaves || "",
@@ -779,7 +883,7 @@
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     ws['!cols'] = [
-      {wch:16},{wch:14},{wch:34},{wch:12},{wch:14},{wch:14},{wch:14},
+      {wch:16},{wch:12},{wch:14},{wch:34},{wch:12},{wch:14},{wch:14},{wch:14},
       {wch:18},{wch:26},{wch:14},{wch:34},{wch:14},{wch:16},{wch:16}
     ];
     const wb = XLSX.utils.book_new();
@@ -792,33 +896,48 @@
     return {blob, filename};
   }
 
-  $('export-btn').addEventListener('click', async () => {
-    const {blob, filename} = buildWorkbookBlob();
-    const file = new File([blob], filename, {type: blob.type});
-
-    // Si el dispositivo soporta el menú nativo de "Compartir/Guardar en",
-    // se abre ese selector para que elijas la carpeta o app de destino cada vez.
-    if(navigator.canShare && navigator.canShare({files:[file]})){
-      try{
-        await navigator.share({
-          files:[file],
-          title: filename,
-          text: 'Listado de obras exportado desde el mapa'
-        });
-        return;
-      }catch(err){
-        if(err && err.name === 'AbortError') return; // el usuario canceló el selector
-        // si falla por otro motivo, seguimos con la descarga normal
-      }
-    }
-
-    // Descarga estándar (el navegador decide la carpeta, salvo que tengas
-    // activado "Preguntar dónde guardar cada archivo" en su configuración)
+  function descargarBlob(blob, filename){
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url; a.download = filename;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  }
+
+  // Botón "Descargar Excel": siempre descarga directamente al dispositivo.
+  $('export-btn').addEventListener('click', () => {
+    const {blob, filename} = buildWorkbookBlob();
+    descargarBlob(blob, filename);
+  });
+
+  // Botón "Compartir": intenta abrir el menú nativo de compartir del
+  // sistema. Si el navegador/dispositivo no lo soporta para este tipo
+  // de archivo, avisa claramente en vez de fallar en silencio.
+  $('share-btn').addEventListener('click', async () => {
+    const {blob, filename} = buildWorkbookBlob();
+    const file = new File([blob], filename, {type: blob.type});
+
+    if(!navigator.share){
+      alert("Este navegador no tiene la función de compartir. Usa el botón \"Descargar Excel\" y comparte el archivo manualmente desde tus Descargas.");
+      descargarBlob(blob, filename);
+      return;
+    }
+    if(!(navigator.canShare && navigator.canShare({files:[file]}))){
+      alert("Este navegador no permite compartir archivos Excel directamente. Se descargará en su lugar — puedes compartirlo tú desde la carpeta Descargas.");
+      descargarBlob(blob, filename);
+      return;
+    }
+    try{
+      await navigator.share({
+        files:[file],
+        title: filename,
+        text: 'Listado de obras exportado desde el mapa'
+      });
+    }catch(err){
+      if(err && err.name === 'AbortError') return; // el usuario canceló el selector, no hacemos nada más
+      alert("No se pudo abrir el menú de compartir. Se descargará el archivo en su lugar.");
+      descargarBlob(blob, filename);
+    }
   });
 
   // ---------- INIT ----------
