@@ -299,19 +299,13 @@
           <input type="text" id="f-input-poblacion">
         </div>
         <div class="field">
-          <label>Provincia</label>
-          <input type="text" id="f-input-provincia" placeholder="Málaga">
-        </div>
-      </div>
-      <div class="field-row">
-        <div class="field">
           <label>% Construcción</label>
           <input type="number" id="f-input-pct" min="0" max="100" placeholder="0–100">
         </div>
-        <div class="field">
-          <label>GESCAL26</label>
-          <input type="text" id="f-input-gescal26" placeholder="Código interno">
-        </div>
+      </div>
+      <div class="field">
+        <label>GESCAL26</label>
+        <input type="text" id="f-input-gescal26" placeholder="Código interno">
       </div>
       <div class="field">
         <label>Dirección</label>
@@ -415,7 +409,8 @@
   const $ = (id) => document.getElementById(id);
 
   // ---------- MAP ----------
-  const map = L.map('map', {zoomControl:true}).setView([36.62, -4.75], 10); // Costa del Sol, Málaga
+  const map = L.map('map', {zoomControl:false}).setView([36.62, -4.75], 10); // Costa del Sol, Málaga
+  L.control.zoom({position:'bottomleft'}).addTo(map); // fuera del hueco del aviso/buscador de arriba
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
     attribution: '&copy; OpenStreetMap'
@@ -526,9 +521,8 @@
       const calle = a.road || a.pedestrian || a.footway || "";
       const numero = a.house_number || "";
       const poblacion = a.town || a.village || a.city || a.municipality || "";
-      const provincia = a.state || a.province || "";
       const direccion = [calle, numero].filter(Boolean).join(" ");
-      return { direccion: direccion || data.display_name || "", poblacion, provincia };
+      return { direccion: direccion || data.display_name || "", poblacion };
     }catch(e){
       return null;
     }
@@ -537,7 +531,6 @@
   // ---------- MODAL ----------
   function resetForm(){
     $('f-input-poblacion').value = "";
-    $('f-input-provincia').value = "Málaga";
     $('f-input-pct').value = "";
     $('f-input-gescal26').value = "";
     $('f-input-direccion').value = "";
@@ -563,7 +556,6 @@
 
     if(existing){
       $('f-input-poblacion').value = existing.poblacion || "";
-      $('f-input-provincia').value = existing.provincia || "Málaga";
       $('f-input-pct').value = existing.pct || "";
       $('f-input-gescal26').value = existing.gescal26 || "";
       $('f-input-direccion').value = existing.direccion || "";
@@ -581,7 +573,6 @@
       if(geo && geo.direccion){
         $('f-input-direccion').value = geo.direccion;
         $('f-input-poblacion').value = geo.poblacion;
-        if(geo.provincia) $('f-input-provincia').value = geo.provincia;
         $('geo-status').textContent = "Dirección obtenida automáticamente — revísala antes de guardar.";
       } else {
         $('geo-status').textContent = "La búsqueda automática de dirección no está disponible aquí. Escríbela a mano (las coordenadas ya han quedado registradas).";
@@ -610,7 +601,6 @@
       lat: pendingLatLng.lat,
       lon: pendingLatLng.lng,
       poblacion: $('f-input-poblacion').value.trim(),
-      provincia: $('f-input-provincia').value.trim(),
       direccion,
       pct: $('f-input-pct').value ? Number($('f-input-pct').value) : null,
       gescal26: $('f-input-gescal26').value.trim(),
@@ -866,7 +856,6 @@
     const list = getFiltered().length ? getFiltered() : obras;
     const rows = list.map(o => ({
       "POBLACION": o.poblacion || "",
-      "PROVINCIA": o.provincia || "",
       "GESCAL26": o.gescal26 || "",
       "DIRECCION": o.direccion || "",
       "% CONSTRUCCION": o.pct != null ? `${o.pct}%` : "",
@@ -883,7 +872,7 @@
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     ws['!cols'] = [
-      {wch:16},{wch:12},{wch:14},{wch:34},{wch:12},{wch:14},{wch:14},{wch:14},
+      {wch:16},{wch:14},{wch:34},{wch:12},{wch:14},{wch:14},{wch:14},
       {wch:18},{wch:26},{wch:14},{wch:34},{wch:14},{wch:16},{wch:16}
     ];
     const wb = XLSX.utils.book_new();
