@@ -275,8 +275,7 @@
         <input type="date" id="f-fecha">
       </label>
       <button class="btn-secondary-flat" id="f-fecha-clear" title="Quitar filtro de día">✕</button>
-      <button class="export-btn" id="share-btn">Compartir</button>
-      <button class="export-btn" id="export-btn">Descargar Excel</button>
+      <button class="export-btn" id="export-btn">Exportar a Excel</button>
     </div>
     <p class="count-line" id="count-line"></p>
     <div id="table-wrap"></div>
@@ -852,9 +851,9 @@
   }
 
   // ---------- EXPORT ----------
-  function buildWorkbookBlob(){
+  function buildRows(){
     const list = getFiltered().length ? getFiltered() : obras;
-    const rows = list.map(o => ({
+    return list.map(o => ({
       "POBLACION": o.poblacion || "",
       "GESCAL26": o.gescal26 || "",
       "DIRECCION": o.direccion || "",
@@ -870,6 +869,10 @@
       "FECHA DE ULTIMA VISITA": o.fechaVisita ? formatFechaISO(o.fechaVisita) : (o.creado ? new Date(o.creado).toLocaleDateString('es-ES') : ""),
       "TECNICO/S": o.tecnico || ""
     }));
+  }
+
+  $('export-btn').addEventListener('click', () => {
+    const rows = buildRows();
     const ws = XLSX.utils.json_to_sheet(rows);
     ws['!cols'] = [
       {wch:16},{wch:14},{wch:34},{wch:12},{wch:14},{wch:14},{wch:14},
@@ -879,54 +882,7 @@
     XLSX.utils.book_append_sheet(wb, ws, "OBRAS DETECTADAS");
     const stamp = new Date().toISOString().slice(0,10);
     const quien = (techName || $('tech-name-input').value.trim() || 'sin nombre').replace(/[\\/:*?"<>|]/g, '').trim();
-    const filename = `Control de Prioritarias ${stamp} ${quien}.xlsx`;
-    const wbout = XLSX.write(wb, {bookType:'xlsx', type:'array'});
-    const blob = new Blob([wbout], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
-    return {blob, filename};
-  }
-
-  function descargarBlob(blob, filename){
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = filename;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }
-
-  // Botón "Descargar Excel": siempre descarga directamente al dispositivo.
-  $('export-btn').addEventListener('click', () => {
-    const {blob, filename} = buildWorkbookBlob();
-    descargarBlob(blob, filename);
-  });
-
-  // Botón "Compartir": intenta abrir el menú nativo de compartir del
-  // sistema. Si el navegador/dispositivo no lo soporta para este tipo
-  // de archivo, avisa claramente en vez de fallar en silencio.
-  $('share-btn').addEventListener('click', async () => {
-    const {blob, filename} = buildWorkbookBlob();
-    const file = new File([blob], filename, {type: blob.type});
-
-    if(!navigator.share){
-      alert("Este navegador no tiene la función de compartir. Usa el botón \"Descargar Excel\" y comparte el archivo manualmente desde tus Descargas.");
-      descargarBlob(blob, filename);
-      return;
-    }
-    if(!(navigator.canShare && navigator.canShare({files:[file]}))){
-      alert("Este navegador no permite compartir archivos Excel directamente. Se descargará en su lugar — puedes compartirlo tú desde la carpeta Descargas.");
-      descargarBlob(blob, filename);
-      return;
-    }
-    try{
-      await navigator.share({
-        files:[file],
-        title: filename,
-        text: 'Listado de obras exportado desde el mapa'
-      });
-    }catch(err){
-      if(err && err.name === 'AbortError') return; // el usuario canceló el selector, no hacemos nada más
-      alert("No se pudo abrir el menú de compartir. Se descargará el archivo en su lugar.");
-      descargarBlob(blob, filename);
-    }
+    XLSX.writeFile(wb, `Control de Prioritarias ${stamp} ${quien}.xlsx`);
   });
 
   // ---------- INIT ----------
