@@ -260,7 +260,7 @@
         <option value="PENDIENTE">Pendiente</option>
         <option value="EN ESTUDIO">En estudio</option>
         <option value="TERMINADO">Terminado / cobertura</option>
-        <option value="DESCARTADA">Sin permiso</option>
+        <option value="SIN PERMISO">Sin permiso</option>
       </select>
       <label class="date-filter-label">Día:
         <input type="date" id="f-fecha">
@@ -312,7 +312,7 @@
             <option value="PENDIENTE">Pendiente</option>
             <option value="EN ESTUDIO">En estudio</option>
             <option value="TERMINADO">Terminado / cobertura</option>
-            <option value="DESCARTADA">Sin permiso</option>
+            <option value="SIN PERMISO">Sin permiso</option>
           </select>
         </div>
       </div>
@@ -381,13 +381,13 @@
     "PENDIENTE":"#d95a1e",
     "EN ESTUDIO":"#2e6fa8",
     "TERMINADO":"#1f7a5c",
-    "DESCARTADA":"#8a92a0"
+    "SIN PERMISO":"#8a92a0"
   };
   const ESTADO_LABEL = {
     "PENDIENTE":"Pendiente",
     "EN ESTUDIO":"En estudio",
     "TERMINADO":"Terminado",
-    "DESCARTADA":"Sin permiso"
+    "SIN PERMISO":"Sin permiso"
   };
 
   let obras = [];          // in-memory list of all shared obras
@@ -642,7 +642,7 @@
           <option value="PENDIENTE" ${obra.estado==='PENDIENTE'?'selected':''}>Pendiente</option>
           <option value="EN ESTUDIO" ${obra.estado==='EN ESTUDIO'?'selected':''}>En estudio</option>
           <option value="TERMINADO" ${obra.estado==='TERMINADO'?'selected':''}>Terminado</option>
-          <option value="DESCARTADA" ${obra.estado==='DESCARTADA'?'selected':''}>Sin permiso</option>
+          <option value="SIN PRMISO" ${obra.estado==='SIN PERMISO'?'selected':''}>Sin permiso</option>
         </select>
         <div class="popup-actions">
           <button data-action="edit" data-id="${obra.id}">Editar</button>
@@ -673,14 +673,14 @@
   }
 
   function renderStats(){
-    const counts = {PENDIENTE:0,"EN ESTUDIO":0,TERMINADO:0,DESCARTADA:0};
+    const counts = {PENDIENTE:0,"EN ESTUDIO":0,TERMINADO:0,SIN PERMISO:0};
     obras.forEach(o => { if(counts[o.estado] !== undefined) counts[o.estado]++; });
     const bar = $('stats-bar');
     bar.innerHTML = `
       <div class="stat-chip"><span class="dot" style="background:${ESTADO_COLOR.PENDIENTE}"></span>Pendiente <b>${counts.PENDIENTE}</b></div>
       <div class="stat-chip"><span class="dot" style="background:${ESTADO_COLOR['EN ESTUDIO']}"></span>En estudio <b>${counts['EN ESTUDIO']}</b></div>
       <div class="stat-chip"><span class="dot" style="background:${ESTADO_COLOR.TERMINADO}"></span>Terminado <b>${counts.TERMINADO}</b></div>
-      <div class="stat-chip"><span class="dot" style="background:${ESTADO_COLOR.DESCARTADA}"></span>Sin permiso <b>${counts.DESCARTADA}</b></div>
+      <div class="stat-chip"><span class="dot" style="background:${ESTADO_COLOR.SIN PERMISO}"></span>Sin permiso <b>${counts.SIN PERMISO}</b></div>
       <div class="stat-chip">Total <b>${obras.length}</b></div>
     `;
   }
