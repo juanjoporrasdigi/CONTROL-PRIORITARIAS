@@ -87,39 +87,34 @@
   /* ---------- MAP ---------- */
   #map-wrap{position:relative;}
   #map{height:52vh;min-height:340px;width:100%;}
-  .map-hint{
-    position:absolute;top:10px;left:10px;z-index:500;
-    background:rgba(18,34,54,.92);color:#dfe6ee;
-    font-size:12px;padding:7px 11px;border-radius:3px;
-    font-family:'IBM Plex Mono',monospace;
-    pointer-events:none;
-    border-left:3px solid var(--orange);
-  }
-  .refresh-btn{
-    background:#fff;border:1px solid var(--line);
-    padding:7px 12px;border-radius:3px;font-size:12.5px;
-    cursor:pointer;font-family:'Archivo',sans-serif;font-weight:600;
-    color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.15);
-  }
-  .refresh-btn:hover{background:var(--paper);}
-  .map-controls{
-    position:absolute;top:10px;right:10px;z-index:500;
-    display:flex;gap:8px;
-  }
   .map-search{
-    position:absolute;top:52px;left:10px;right:10px;z-index:500;
-    display:flex;gap:6px;max-width:420px;
+    position:absolute;top:10px;left:10px;z-index:500;
+    display:flex;gap:6px;width:300px;
   }
   .map-search input{
-    flex:1;padding:8px 10px;border:1px solid var(--line);border-radius:3px;
+    width:210px;flex:none;padding:8px 10px;border:1px solid var(--line);border-radius:3px;
     font-family:'Archivo',sans-serif;font-size:13px;
     box-shadow:0 1px 3px rgba(0,0,0,.15);
   }
   .map-search button{
-    background:var(--navy);color:#fff;border:none;padding:8px 14px;
+    flex:none;background:var(--navy);color:#fff;border:none;padding:8px 14px;
     border-radius:3px;font-size:12.5px;font-weight:600;cursor:pointer;
   }
   .map-search button:hover{background:var(--navy-2);}
+  .locate-fab{
+    position:absolute;bottom:16px;right:16px;z-index:500;
+    width:48px;height:48px;border-radius:50%;
+    background:#fff;border:1px solid var(--line);
+    box-shadow:0 2px 6px rgba(0,0,0,.25);
+    font-size:19px;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .locate-fab:hover{background:var(--paper);}
+  .locate-fab.locating{animation:pulse 1s infinite;}
+  @keyframes pulse{
+    0%,100%{opacity:1;}
+    50%{opacity:.5;}
+  }
 
   /* ---------- PANEL ---------- */
   #panel{flex:1;padding:16px 20px 60px;max-width:1180px;width:100%;margin:0 auto;}
@@ -236,7 +231,7 @@
     <div class="head-row">
       <div>
         <h1>Control de Prioritarias</h1>
-        <p class="subtitle">Mapa compartido para equipo técnico de replanteos por Juanjose.porras</p>
+        <p class="subtitle">Mapa compartido para el equipo técnico de replanteos de Digi por Juan José Porras</p>
       </div>
       <div class="tech-field">
         <label for="tech-name-input">TÉCNICO</label>
@@ -247,15 +242,11 @@
   </header>
 
   <div id="map-wrap">
-    <div class="map-hint">Toca el mapa para marcar una obra nueva</div>
-    <div class="map-controls">
-      <button class="refresh-btn" id="locate-btn">📍 Mi ubicación</button>
-      <button class="refresh-btn" id="refresh-btn">↻ Actualizar</button>
-    </div>
     <div class="map-search">
       <input type="text" id="map-search-input" placeholder="Buscar dirección o coordenadas (36.50, -4.75)...">
       <button id="map-search-btn">Buscar</button>
     </div>
+    <button class="locate-fab" id="locate-btn" title="Mi ubicación" aria-label="Mi ubicación">📍</button>
     <div id="map"></div>
   </div>
 
@@ -269,7 +260,7 @@
         <option value="PENDIENTE">Pendiente</option>
         <option value="EN ESTUDIO">En estudio</option>
         <option value="TERMINADO">Terminado / cobertura</option>
-        <option value="DESCARTADA">Descartada</option>
+        <option value="DESCARTADA">Sin permiso</option>
       </select>
       <label class="date-filter-label">Día:
         <input type="date" id="f-fecha">
@@ -321,7 +312,7 @@
             <option value="PENDIENTE">Pendiente</option>
             <option value="EN ESTUDIO">En estudio</option>
             <option value="TERMINADO">Terminado / cobertura</option>
-            <option value="DESCARTADA">Descartada</option>
+            <option value="DESCARTADA">Sin permiso</option>
           </select>
         </div>
       </div>
@@ -396,7 +387,7 @@
     "PENDIENTE":"Pendiente",
     "EN ESTUDIO":"En estudio",
     "TERMINADO":"Terminado",
-    "DESCARTADA":"Descartada"
+    "DESCARTADA":"Sin permiso"
   };
 
   let obras = [];          // in-memory list of all shared obras
@@ -409,7 +400,6 @@
 
   // ---------- MAP ----------
   const map = L.map('map', {zoomControl:false}).setView([36.62, -4.75], 10); // Costa del Sol, Málaga
-  L.control.zoom({position:'bottomleft'}).addTo(map); // fuera del hueco del aviso/buscador de arriba
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
     attribution: '&copy; OpenStreetMap'
@@ -652,7 +642,7 @@
           <option value="PENDIENTE" ${obra.estado==='PENDIENTE'?'selected':''}>Pendiente</option>
           <option value="EN ESTUDIO" ${obra.estado==='EN ESTUDIO'?'selected':''}>En estudio</option>
           <option value="TERMINADO" ${obra.estado==='TERMINADO'?'selected':''}>Terminado</option>
-          <option value="DESCARTADA" ${obra.estado==='DESCARTADA'?'selected':''}>Descartada</option>
+          <option value="DESCARTADA" ${obra.estado==='DESCARTADA'?'selected':''}>Sin permiso</option>
         </select>
         <div class="popup-actions">
           <button data-action="edit" data-id="${obra.id}">Editar</button>
@@ -690,7 +680,7 @@
       <div class="stat-chip"><span class="dot" style="background:${ESTADO_COLOR.PENDIENTE}"></span>Pendiente <b>${counts.PENDIENTE}</b></div>
       <div class="stat-chip"><span class="dot" style="background:${ESTADO_COLOR['EN ESTUDIO']}"></span>En estudio <b>${counts['EN ESTUDIO']}</b></div>
       <div class="stat-chip"><span class="dot" style="background:${ESTADO_COLOR.TERMINADO}"></span>Terminado <b>${counts.TERMINADO}</b></div>
-      <div class="stat-chip"><span class="dot" style="background:${ESTADO_COLOR.DESCARTADA}"></span>Descartada <b>${counts.DESCARTADA}</b></div>
+      <div class="stat-chip"><span class="dot" style="background:${ESTADO_COLOR.DESCARTADA}"></span>Sin permiso <b>${counts.DESCARTADA}</b></div>
       <div class="stat-chip">Total <b>${obras.length}</b></div>
     `;
   }
@@ -788,15 +778,6 @@
 
   $('tech-name-input').addEventListener('change', (e)=> saveTechName(e.target.value.trim()));
 
-  $('refresh-btn').addEventListener('click', () => {
-    // Con Firebase los datos ya llegan en tiempo real; este botón
-    // solo confirma visualmente que la conexión sigue activa.
-    const btn = $('refresh-btn');
-    const original = btn.textContent;
-    btn.textContent = "✓ Al día";
-    setTimeout(() => btn.textContent = original, 1200);
-  });
-
   let userLocationMarker = null;
   $('locate-btn').addEventListener('click', () => {
     if(!navigator.geolocation){
@@ -804,17 +785,16 @@
       return;
     }
     const btn = $('locate-btn');
-    const original = btn.textContent;
-    btn.textContent = "Buscando...";
+    btn.classList.add('locating');
     const timeout = setTimeout(() => {
-      btn.textContent = original;
+      btn.classList.remove('locating');
       alert("No se ha podido obtener tu ubicación en este entorno (puede estar bloqueada por permisos). Marca el punto directamente tocando el mapa donde estés.");
     }, 6000);
     try{
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           clearTimeout(timeout);
-          btn.textContent = original;
+          btn.classList.remove('locating');
           const {latitude, longitude} = pos.coords;
           map.setView([latitude, longitude], 16);
           if(userLocationMarker) map.removeLayer(userLocationMarker);
@@ -824,7 +804,7 @@
         },
         (err) => {
           clearTimeout(timeout);
-          btn.textContent = original;
+          btn.classList.remove('locating');
           let msg = "No se pudo obtener tu ubicación. Marca el punto directamente tocando el mapa donde estés.";
           if(err.code === err.PERMISSION_DENIED) msg = "Este entorno ha bloqueado el permiso de ubicación. Marca el punto directamente tocando el mapa donde estés.";
           alert(msg);
@@ -833,7 +813,7 @@
       );
     }catch(e){
       clearTimeout(timeout);
-      btn.textContent = original;
+      btn.classList.remove('locating');
       alert("La ubicación no está disponible en este entorno. Marca el punto directamente tocando el mapa donde estés.");
     }
   });
