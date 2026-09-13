@@ -645,6 +645,7 @@
           <option value="DESCARTADA" ${obra.estado==='DESCARTADA'?'selected':''}>Sin permiso</option>
         </select>
         <div class="popup-actions">
+          <button data-action="maps" data-id="${obra.id}">📍 Google Maps</button>
           <button data-action="edit" data-id="${obra.id}">Editar</button>
         </div>
       `;
@@ -658,6 +659,11 @@
           renderAll();
         }
       });
+      popupDiv.querySelector('[data-action="maps"]').addEventListener('click', () => {
+        const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(obra.lat + ',' + obra.lon)}`;
+        window.open(mapsUrl, '_blank');
+      });
+
       popupDiv.querySelector('[data-action="edit"]').addEventListener('click', () => {
         map.closePopup();
         openModal(L.latLng(obra.lat, obra.lon), obra);
@@ -735,6 +741,7 @@
         <td class="obs-cell">${escapeHtml(o.observaciones||'')}</td>
         <td><div class="row-actions">
           <button data-action="ver">Ver en mapa</button>
+          <button data-action="maps">Google Maps</button>
           <button data-action="editar">Editar</button>
         </div></td>
       </tr>
@@ -754,6 +761,17 @@
         if(o){ map.setView([o.lat,o.lon], 17); markersById[id]?.openPopup(); window.scrollTo({top:0, behavior:'smooth'}); }
       });
     });
+    wrap.querySelectorAll('button[data-action="maps"]').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{
+        const id = e.target.closest('tr').dataset.id;
+        const o = obras.find(x=>x.id===id);
+        if(o){
+          const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(o.lat + ',' + o.lon)}`;
+          window.open(mapsUrl, '_blank');
+        }
+      });
+    });
+
     wrap.querySelectorAll('button[data-action="editar"]').forEach(btn=>{
       btn.addEventListener('click', (e)=>{
         const id = e.target.closest('tr').dataset.id;
