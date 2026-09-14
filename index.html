@@ -362,22 +362,20 @@
   "use strict";
 
   // ============================================================
-  // CONFIGURACIÓN DE FIREBASE — rellena esto con los datos de TU
-  // proyecto gratuito de Firebase (Firebase Console → Configuración
-  // del proyecto → tus apps → SDK setup and configuration).
+  // CONFIGURACIÓN DE FIREBASE
   // ============================================================
   const firebaseConfig = {
-    apiKey: "AIzaSyB1uFR3p2JuZeZXwpqZ6Ie2JMxJMWCJ-mE",
+    apiKey: "AIzaSyB1UFR3p2JuZeZXwpqZ6Ie2JMxJMWCJ-mE",
     authDomain: "prioritarias-malaga.firebaseapp.com",
     projectId: "prioritarias-malaga",
     storageBucket: "prioritarias-malaga.firebasestorage.app",
     messagingSenderId: "356289109873",
     appId: "1:356289109873:web:1a0738635cd38b3aa020d0"
   };
+
   firebase.initializeApp(firebaseConfig);
   const db = firebase.firestore();
   const obrasCollection = db.collection('obras');
-  // ============================================================
 
   const ESTADO_COLOR = {
     "PENDIENTE":"#d95a1e",
@@ -385,6 +383,7 @@
     "TERMINADO":"#1f7a5c",
     "DESCARTADA":"#8a92a0"
   };
+
   const ESTADO_LABEL = {
     "PENDIENTE":"Pendiente",
     "EN ESTUDIO":"En estudio",
@@ -392,8 +391,8 @@
     "DESCARTADA":"Sin permiso"
   };
 
-  let obras = [];          // in-memory list of all shared obras
-  let markersById = {};    // id -> leaflet marker
+  let obras = [];
+  let markersById = {};
   let pendingLatLng = null;
   let editingId = null;
   let techName = "";
@@ -401,7 +400,8 @@
   const $ = (id) => document.getElementById(id);
 
   // ---------- MAP ----------
-  const map = L.map('map', {zoomControl:false}).setView([36.62, -4.75], 10); // Costa del Sol, Málaga
+  const map = L.map('map', {zoomControl:false}).setView([36.62, -4.75], 10);
+
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
     attribution: '&copy; OpenStreetMap'
@@ -409,68 +409,110 @@
 
   map.on('click', (e) => openModal(e.latlng, null));
 
-  // ---------- BUSCADOR DE UBICACIÓN (dirección o coordenadas) ----------
+  // ---------- BUSCADOR ----------
   let searchMarker = null;
+
   async function buscarUbicacion(){
     const raw = $('map-search-input').value.trim();
     if(!raw) return;
+
     const btn = $('map-search-btn');
     const original = btn.textContent;
 
-    // ¿Son coordenadas del tipo "36.5, -4.75"?
     const coordMatch = raw.match(/^\s*(-?\d{1,3}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)\s*$/);
+
     if(coordMatch){
-      const lat = parseFloat(coordMatch[1]), lon = parseFloat(coordMatch[2]);
+      const lat = parseFloat(coordMatch[1]);
+      const lon = parseFloat(coordMatch[2]);
+
       map.setView([lat, lon], 17);
+
       if(searchMarker) map.removeLayer(searchMarker);
-      searchMarker = L.circleMarker([lat, lon], {radius:9, color:'#fff', weight:3, fillColor:'#d95a1e', fillOpacity:1}).addTo(map).bindPopup("Ubicación buscada").openPopup();
+
+      searchMarker = L.circleMarker([lat, lon], {
+        radius:9,
+        color:'#fff',
+        weight:3,
+        fillColor:'#d95a1e',
+        fillOpacity:1
+      }).addTo(map).bindPopup("Ubicación buscada").openPopup();
+
       return;
     }
 
-    // Si no, se busca como dirección de texto
-    btn.disabled = true; btn.textContent = "Buscando...";
+    btn.disabled = true;
+    btn.textContent = "Buscando...";
+
     try{
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 6000);
+
       const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(raw)}&limit=1&countrycodes=es`;
-      const res = await fetch(url, { headers:{'Accept-Language':'es'}, signal: controller.signal });
+
+      const res = await fetch(url, {
+        headers:{'Accept-Language':'es'},
+        signal: controller.signal
+      });
+
       clearTimeout(timeout);
+
       const data = await res.json();
+
       if(data && data[0]){
-        const lat = parseFloat(data[0].lat), lon = parseFloat(data[0].lon);
+        const lat = parseFloat(data[0].lat);
+        const lon = parseFloat(data[0].lon);
+
         map.setView([lat, lon], 17);
+
         if(searchMarker) map.removeLayer(searchMarker);
-        searchMarker = L.circleMarker([lat, lon], {radius:9, color:'#fff', weight:3, fillColor:'#d95a1e', fillOpacity:1}).addTo(map).bindPopup(data[0].display_name).openPopup();
-      } else {
+
+        searchMarker = L.circleMarker([lat, lon], {
+          radius:9,
+          color:'#fff',
+          weight:3,
+          fillColor:'#d95a1e',
+          fillOpacity:1
+        }).addTo(map).bindPopup(data[0].display_name).openPopup();
+      }else{
         alert("No se ha encontrado esa dirección. Prueba a ser más concreto (calle, número, población) o escribe las coordenadas directamente (ej: 36.50, -4.75).");
       }
     }catch(e){
       alert("No se pudo buscar esa dirección en este momento. Prueba con coordenadas (ej: 36.50, -4.75) o inténtalo de nuevo.");
     }finally{
-      btn.disabled = false; btn.textContent = original;
+      btn.disabled = false;
+      btn.textContent = original;
     }
   }
-  $('map-search-btn').addEventListener('click', buscarUbicacion);
-  $('map-search-input').addEventListener('keydown', (e) => { if(e.key === 'Enter') buscarUbicacion(); });
 
-  // ---------- STORAGE HELPERS (Firebase Firestore + localStorage) ----------
+  $('map-search-btn').addEventListener('click', buscarUbicacion);
+
+  $('map-search-input').addEventListener('keydown', (e) => {
+    if(e.key === 'Enter') buscarUbicacion();
+  });
+
+  // ---------- STORAGE ----------
   function loadTechName(){
     const stored = localStorage.getItem('technician-name');
-    if(stored){ techName = stored; $('tech-name-input').value = techName; }
+
+    if(stored){
+      techName = stored;
+      $('tech-name-input').value = techName;
+    }
   }
+
   function saveTechName(name){
     techName = name;
     localStorage.setItem('technician-name', name);
   }
 
-  // Escucha en tiempo real: en cuanto un técnico guarda un punto,
-  // todos los demás lo ven aparecer sin recargar ni esperar.
   function startRealtimeSync(){
     obrasCollection.onSnapshot((snapshot) => {
       obras = snapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() }))
         .sort((a,b) => (b.creado||"").localeCompare(a.creado||""));
+
       renderAll();
+
     }, (err) => {
       console.error("Error de sincronización con Firebase", err);
       alert("No se pudo conectar con la base de datos compartida. Revisa la configuración de Firebase (firebaseConfig) en el código.");
@@ -503,17 +545,31 @@
     try{
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 4000);
+
       const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`;
-      const res = await fetch(url, { headers: { 'Accept-Language': 'es' }, signal: controller.signal });
+
+      const res = await fetch(url, {
+        headers: { 'Accept-Language': 'es' },
+        signal: controller.signal
+      });
+
       clearTimeout(timeout);
+
       if(!res.ok) throw new Error("geocode failed");
+
       const data = await res.json();
       const a = data.address || {};
+
       const calle = a.road || a.pedestrian || a.footway || "";
       const numero = a.house_number || "";
       const poblacion = a.town || a.village || a.city || a.municipality || "";
       const direccion = [calle, numero].filter(Boolean).join(" ");
-      return { direccion: direccion || data.display_name || "", poblacion };
+
+      return {
+        direccion: direccion || data.display_name || "",
+        poblacion
+      };
+
     }catch(e){
       return null;
     }
@@ -538,11 +594,14 @@
   async function openModal(latlng, existing){
     editingId = existing ? existing.id : null;
     pendingLatLng = latlng;
+
     resetForm();
+
     $('delete-btn').style.display = existing ? '' : 'none';
     $('modal-title').textContent = existing ? "Editar obra" : "Nueva obra";
     $('modal-coords').textContent = `${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)}`;
     $('geo-status').textContent = "";
+
     $('overlay').classList.add('show');
 
     if(existing){
@@ -558,14 +617,16 @@
       $('f-input-entrega-llaves').value = existing.entregaLlaves || "";
       $('f-input-fecha-visita').value = existing.fechaVisita || "";
       $('f-input-obs').value = existing.observaciones || "";
-    } else {
+    }else{
       $('geo-status').textContent = "Buscando dirección...";
+
       const geo = await reverseGeocode(latlng.lat, latlng.lng);
+
       if(geo && geo.direccion){
         $('f-input-direccion').value = geo.direccion;
         $('f-input-poblacion').value = geo.poblacion;
         $('geo-status').textContent = "Dirección obtenida automáticamente — revísala antes de guardar.";
-      } else {
+      }else{
         $('geo-status').textContent = "La búsqueda automática de dirección no está disponible aquí. Escríbela a mano (las coordenadas ya han quedado registradas).";
       }
     }
@@ -581,12 +642,20 @@
 
   $('save-btn').addEventListener('click', async () => {
     const direccion = $('f-input-direccion').value.trim();
-    if(!direccion){ alert("Introduce al menos la dirección."); return; }
+
+    if(!direccion){
+      alert("Introduce al menos la dirección.");
+      return;
+    }
+
     const name = $('tech-name-input').value.trim();
+
     if(name && name !== techName) saveTechName(name);
 
     $('save-btn').disabled = true;
+
     const now = new Date();
+
     const obra = {
       id: editingId || ('o' + Date.now() + Math.random().toString(36).slice(2,7)),
       lat: pendingLatLng.lat,
@@ -603,13 +672,21 @@
       entregaLlaves: $('f-input-entrega-llaves').value.trim(),
       fechaVisita: $('f-input-fecha-visita').value,
       observaciones: $('f-input-obs').value.trim(),
-      creado: editingId ? (obras.find(o=>o.id===editingId)?.creado || now.toISOString()) : now.toISOString()
+      creado: editingId
+        ? (obras.find(o=>o.id===editingId)?.creado || now.toISOString())
+        : now.toISOString()
     };
+
     const ok = await saveObra(obra);
+
     $('save-btn').disabled = false;
+
     if(ok){
       const idx = obras.findIndex(o => o.id === obra.id);
-      if(idx >= 0) obras[idx] = obra; else obras.unshift(obra);
+
+      if(idx >= 0) obras[idx] = obra;
+      else obras.unshift(obra);
+
       renderAll();
       closeModal();
     }
@@ -617,8 +694,11 @@
 
   $('delete-btn').addEventListener('click', async () => {
     if(!editingId) return;
+
     if(!confirm("¿Eliminar esta obra del mapa y del listado?")) return;
+
     const ok = await deleteObraById(editingId);
+
     if(ok){
       obras = obras.filter(o => o.id !== editingId);
       renderAll();
@@ -630,13 +710,20 @@
   function renderMarkers(){
     Object.values(markersById).forEach(m => map.removeLayer(m));
     markersById = {};
+
     obras.forEach(obra => {
       const color = ESTADO_COLOR[obra.estado] || ESTADO_COLOR.PENDIENTE;
+
       const marker = L.circleMarker([obra.lat, obra.lon], {
-        radius: 8, color: '#fff', weight: 2, fillColor: color, fillOpacity: 1
+        radius: 8,
+        color: '#fff',
+        weight: 2,
+        fillColor: color,
+        fillOpacity: 1
       }).addTo(map);
 
       const popupDiv = document.createElement('div');
+
       popupDiv.innerHTML = `
         <div class="popup-title">${escapeHtml(obra.direccion || 'Sin dirección')}</div>
         <div class="popup-meta">${escapeHtml(obra.poblacion || '')} · ${escapeHtml(obra.tecnico || 'sin técnico')}</div>
@@ -651,16 +738,20 @@
           <button data-action="edit" data-id="${obra.id}">Editar</button>
         </div>
       `;
+
       popupDiv.querySelector('select').addEventListener('change', async (ev) => {
         const newEstado = ev.target.value;
         const updated = {...obra, estado:newEstado};
+
         const ok = await saveObra(updated);
+
         if(ok){
           const idx = obras.findIndex(o=>o.id===obra.id);
           obras[idx] = updated;
           renderAll();
         }
       });
+
       popupDiv.querySelector('[data-action="maps"]').addEventListener('click', () => {
         const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(obra.lat + ',' + obra.lon)}`;
         window.open(mapsUrl, '_blank');
@@ -677,13 +768,32 @@
   }
 
   function escapeHtml(s){
-    return String(s||"").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    return String(s||"").replace(
+      /[&<>"']/g,
+      c => ({
+        '&':'&amp;',
+        '<':'&lt;',
+        '>':'&gt;',
+        '"':'&quot;',
+        "'":'&#39;'
+      }[c])
+    );
   }
 
   function renderStats(){
-    const counts = {PENDIENTE:0,"EN ESTUDIO":0,TERMINADO:0,DESCARTADA:0};
-    obras.forEach(o => { if(counts[o.estado] !== undefined) counts[o.estado]++; });
+    const counts = {
+      PENDIENTE:0,
+      "EN ESTUDIO":0,
+      TERMINADO:0,
+      DESCARTADA:0
+    };
+
+    obras.forEach(o => {
+      if(counts[o.estado] !== undefined) counts[o.estado]++;
+    });
+
     const bar = $('stats-bar');
+
     bar.innerHTML = `
       <div class="stat-chip"><span class="dot" style="background:${ESTADO_COLOR.PENDIENTE}"></span>Pendiente <b>${counts.PENDIENTE}</b></div>
       <div class="stat-chip"><span class="dot" style="background:${ESTADO_COLOR['EN ESTUDIO']}"></span>En estudio <b>${counts['EN ESTUDIO']}</b></div>
@@ -696,11 +806,23 @@
   function populateFilterOptions(){
     const poblaciones = [...new Set(obras.map(o=>o.poblacion).filter(Boolean))].sort();
     const tecnicos = [...new Set(obras.map(o=>o.tecnico).filter(Boolean))].sort();
-    const selP = $('f-poblacion'), selT = $('f-tecnico');
-    const curP = selP.value, curT = selT.value;
-    selP.innerHTML = '<option value="">Población: todas</option>' + poblaciones.map(p=>`<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('');
-    selT.innerHTML = '<option value="">Técnico: todos</option>' + tecnicos.map(t=>`<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
-    selP.value = curP; selT.value = curT;
+
+    const selP = $('f-poblacion');
+    const selT = $('f-tecnico');
+
+    const curP = selP.value;
+    const curT = selT.value;
+
+    selP.innerHTML =
+      '<option value="">Población: todas</option>' +
+      poblaciones.map(p=>`<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('');
+
+    selT.innerHTML =
+      '<option value="">Técnico: todos</option>' +
+      tecnicos.map(t=>`<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+
+    selP.value = curP;
+    selT.value = curT;
   }
 
   function getFiltered(){
@@ -708,31 +830,42 @@
     const fp = $('f-poblacion').value;
     const ft = $('f-tecnico').value;
     const fe = $('f-estado').value;
-    const fd = $('f-fecha').value; // yyyy-mm-dd, filtra por día de creación
+    const fd = $('f-fecha').value;
+
     return obras.filter(o => {
       if(fp && o.poblacion !== fp) return false;
       if(ft && o.tecnico !== ft) return false;
       if(fe && o.estado !== fe) return false;
+
       if(fd){
         const diaObra = o.creado ? o.creado.slice(0,10) : "";
         if(diaObra !== fd) return false;
       }
+
       if(q){
         const hay = `${o.direccion||''} ${o.poblacion||''}`.toLowerCase();
+
         if(!hay.includes(q)) return false;
       }
+
       return true;
     });
   }
 
   function renderTable(){
     const list = getFiltered();
-    $('count-line').textContent = `${list.length} obra${list.length===1?'':'s'} mostradas de ${obras.length} en total`;
+
+    $('count-line').textContent =
+      `${list.length} obra${list.length===1?'':'s'} mostradas de ${obras.length} en total`;
+
     const wrap = $('table-wrap');
+
     if(list.length === 0){
-      wrap.innerHTML = `<div class="empty-state">Aún no hay obras marcadas. Toca el mapa para añadir la primera.</div>`;
+      wrap.innerHTML =
+        `<div class="empty-state">Aún no hay obras marcadas. Toca el mapa para añadir la primera.</div>`;
       return;
     }
+
     const rows = list.map(o => `
       <tr data-id="${o.id}">
         <td>${escapeHtml(o.poblacion||'—')}</td>
@@ -748,27 +881,44 @@
         </div></td>
       </tr>
     `).join('');
+
     wrap.innerHTML = `
       <table>
         <thead><tr>
-          <th>Población</th><th>Dirección</th><th>Estado</th><th>Técnico</th><th>Fecha</th><th>Observaciones</th><th></th>
+          <th>Población</th>
+          <th>Dirección</th>
+          <th>Estado</th>
+          <th>Técnico</th>
+          <th>Fecha</th>
+          <th>Observaciones</th>
+          <th></th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
     `;
+
     wrap.querySelectorAll('button[data-action="ver"]').forEach(btn=>{
       btn.addEventListener('click', (e)=>{
         const id = e.target.closest('tr').dataset.id;
         const o = obras.find(x=>x.id===id);
-        if(o){ map.setView([o.lat,o.lon], 17); markersById[id]?.openPopup(); window.scrollTo({top:0, behavior:'smooth'}); }
+
+        if(o){
+          map.setView([o.lat,o.lon], 17);
+          markersById[id]?.openPopup();
+          window.scrollTo({top:0, behavior:'smooth'});
+        }
       });
     });
+
     wrap.querySelectorAll('button[data-action="maps"]').forEach(btn=>{
       btn.addEventListener('click', (e)=>{
         const id = e.target.closest('tr').dataset.id;
         const o = obras.find(x=>x.id===id);
+
         if(o){
-          const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(o.lat + ',' + o.lon)}`;
+          const mapsUrl =
+            `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(o.lat + ',' + o.lon)}`;
+
           window.open(mapsUrl, '_blank');
         }
       });
@@ -778,6 +928,7 @@
       btn.addEventListener('click', (e)=>{
         const id = e.target.closest('tr').dataset.id;
         const o = obras.find(x=>x.id===id);
+
         if(o) openModal(L.latLng(o.lat,o.lon), o);
       });
     });
@@ -794,286 +945,626 @@
     $(id).addEventListener('input', renderTable);
     $(id).addEventListener('change', renderTable);
   });
-  $('f-fecha-clear').addEventListener('click', () => { $('f-fecha').value = ""; renderTable(); });
+
+  $('f-fecha-clear').addEventListener('click', () => {
+    $('f-fecha').value = "";
+    renderTable();
+  });
 
   // ---------- IMPORT ----------
   function excelDateToISO(value){
     if(value == null || value === "") return "";
+
     if(value instanceof Date && !isNaN(value.getTime())){
       return value.toISOString().slice(0,10);
     }
+
     if(typeof value === "number"){
-      // Excel serial date (SheetJS may return a number depending on options).
       const utc = new Date(Date.UTC(1899, 11, 30) + value * 86400000);
-      return isNaN(utc.getTime()) ? "" : utc.toISOString().slice(0,10);
+
+      return isNaN(utc.getTime())
+        ? ""
+        : utc.toISOString().slice(0,10);
     }
+
     const text = String(value).trim();
+
     let m = text.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+
     if(m){
-      const d = m[1].padStart(2,'0'), mo = m[2].padStart(2,'0'), y = m[3];
+      const d = m[1].padStart(2,'0');
+      const mo = m[2].padStart(2,'0');
+      const y = m[3];
+
       return `${y}-${mo}-${d}`;
     }
+
     m = text.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+
     if(m){
       return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
     }
+
     return "";
   }
 
   function parseCoords(value){
     if(value == null) return null;
+
     const text = String(value).trim().replace(/;/g, ',');
     const m = text.match(/(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/);
+
     if(!m) return null;
-    const lat = Number(m[1]), lon = Number(m[2]);
-    if(!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
+
+    const lat = Number(m[1]);
+    const lon = Number(m[2]);
+
+    if(
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lon) ||
+      Math.abs(lat) > 90 ||
+      Math.abs(lon) > 180
+    ) return null;
+
     return {lat, lon};
   }
 
   function normalizeEstado(value){
     const v = String(value == null ? "" : value).trim().toUpperCase();
+
     if(v === "SIN PERMISO" || v === "DESCARTADA") return "DESCARTADA";
     if(v === "TERMINADO" || v === "TERMINADA" || v === "COBERTURA") return "TERMINADO";
     if(v === "EN ESTUDIO") return "EN ESTUDIO";
+
     return "PENDIENTE";
   }
 
   function normalizePct(value){
     if(value == null || value === "") return null;
-    if(typeof value === "number") return value <= 1 ? value * 100 : value;
-    const n = parseFloat(String(value).replace('%','').replace(',','.').trim());
+
+    if(typeof value === "number"){
+      return value <= 1 ? value * 100 : value;
+    }
+
+    const n = parseFloat(
+      String(value)
+        .replace('%','')
+        .replace(',','.')
+        .trim()
+    );
+
     return Number.isFinite(n) ? n : null;
   }
 
   function normalizeHeader(value){
     return String(value == null ? "" : value)
-      .trim().toUpperCase()
-      .normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+      .trim()
+      .toUpperCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g,"");
   }
 
   async function importFromExcel(file){
     const data = await file.arrayBuffer();
-    const wb = XLSX.read(data, {type:"array", cellDates:true});
-    const sheetName = wb.SheetNames.includes("OBRAS DETECTADAS") ? "OBRAS DETECTADAS" : wb.SheetNames[0];
+
+    const wb = XLSX.read(data, {
+      type:"array",
+      cellDates:true
+    });
+
+    const sheetName =
+      wb.SheetNames.includes("OBRAS DETECTADAS")
+        ? "OBRAS DETECTADAS"
+        : wb.SheetNames[0];
+
     const ws = wb.Sheets[sheetName];
-    const rawRows = XLSX.utils.sheet_to_json(ws, {defval:""});
-    if(!rawRows.length) throw new Error("El archivo no contiene filas de datos.");
+
+    const rawRows = XLSX.utils.sheet_to_json(ws, {
+      defval:""
+    });
+
+    if(!rawRows.length){
+      throw new Error("El archivo no contiene filas de datos.");
+    }
 
     const rows = rawRows.map((row, index) => {
-      const normalized = { __filaExcel: index + 2 };
-      Object.keys(row).forEach(k => normalized[normalizeHeader(k)] = row[k]);
+      const normalized = {
+        __filaExcel: index + 2
+      };
+
+      Object.keys(row).forEach(k => {
+        normalized[normalizeHeader(k)] = row[k];
+      });
+
       return normalized;
     });
 
     let imported = 0;
     let updated = 0;
     let skipped = 0;
+
     const errors = [];
     const refused = [];
 
     for(const row of rows){
       const fila = row.__filaExcel;
-      const gescal26 = String(row["GESCAL26"] || "").trim();
-      const direccion = String(row["DIRECCION"] || "").trim();
-      const poblacion = String(row["POBLACION"] || "").trim();
-      const identificador = gescal26 || direccion || `fila ${fila}`;
+
+      const gescal26 =
+        String(row["GESCAL26"] || "").trim();
+
+      const direccion =
+        String(row["DIRECCION"] || "").trim();
+
+      const poblacion =
+        String(row["POBLACION"] || "").trim();
+
+      const identificador =
+        gescal26 || direccion || `fila ${fila}`;
 
       try{
-        const coords = parseCoords(row["LINK DE GOOGLE"]);
+        const coords =
+          parseCoords(row["LINK DE GOOGLE"]);
+
         if(!direccion && !coords){
           skipped++;
-          errors.push(`Fila ${fila} (${identificador}): no tiene dirección ni coordenadas válidas.`);
+
+          errors.push(
+            `Fila ${fila} (${identificador}): no tiene dirección ni coordenadas válidas.`
+          );
+
           continue;
         }
+
         if(!coords){
           skipped++;
-          errors.push(`Fila ${fila} (${identificador}): no tiene coordenadas válidas en "LINK DE GOOGLE".`);
+
+          errors.push(
+            `Fila ${fila} (${identificador}): no tiene coordenadas válidas en "LINK DE GOOGLE".`
+          );
+
           continue;
         }
 
-        const existing = gescal26
-          ? obras.find(o => String(o.gescal26 || "").trim() === gescal26)
-          : null;
+        // Comprobación de duplicados:
+        // GESCAL26 O dirección.
+        // Se ignoran mayúsculas/minúsculas y espacios repetidos.
+        const normalizarTexto = (valor) =>
+          String(valor || "")
+            .trim()
+            .toLowerCase()
+            .replace(/\s+/g, " ");
+
+        const gescalNormalizado =
+          normalizarTexto(gescal26);
+
+        const direccionNormalizada =
+          normalizarTexto(direccion);
+
+        const existing = obras.find(o => {
+          const mismoGescal =
+            gescalNormalizado &&
+            normalizarTexto(o.gescal26) === gescalNormalizado;
+
+          const mismaDireccion =
+            direccionNormalizada &&
+            normalizarTexto(o.direccion) === direccionNormalizada;
+
+          return mismoGescal || mismaDireccion;
+        });
 
         if(existing){
+          const coincideGescal =
+            gescalNormalizado &&
+            normalizarTexto(existing.gescal26) === gescalNormalizado;
+
+          const coincideDireccion =
+            direccionNormalizada &&
+            normalizarTexto(existing.direccion) === direccionNormalizada;
+
+          const motivo =
+            coincideGescal && coincideDireccion
+              ? `GESCAL26 ${gescal26} y dirección "${direccion}"`
+              : coincideGescal
+                ? `GESCAL26 ${gescal26}`
+                : `dirección "${direccion}"`;
+
           const wantsImport = confirm(
-            `El GESCAL26 ${gescal26} ya existe en la aplicación.\n\n` +
-            `Prioritaria del Excel:\n${direccion}${poblacion ? ` (${poblacion})` : ""}\n\n` +
-            `¿Quieres importar esta Prioritaria y actualizar la existente?`
+            `Esta Prioritaria ya existe en la aplicación.\n\n` +
+            `Coincidencia encontrada por: ${motivo}\n\n` +
+            `Existente:\n` +
+            `${existing.direccion || "Sin dirección"}` +
+            `${existing.gescal26 ? `\nGESCAL26: ${existing.gescal26}` : ""}\n\n` +
+            `Prioritaria del Excel:\n` +
+            `${direccion}` +
+            `${poblacion ? ` (${poblacion})` : ""}` +
+            `${gescal26 ? `\nGESCAL26: ${gescal26}` : ""}\n\n` +
+            `¿Quieres COPIAR esta Prioritaria como una nueva o DESCARTARla?\n\n` +
+            `Aceptar = COPIAR\nCancelar = DESCARTAR`
           );
+
           if(!wantsImport){
-            refused.push(`Fila ${fila} — GESCAL26 ${gescal26}`);
+            refused.push(
+              `Fila ${fila} — ${gescal26 || direccion}`
+            );
+
             continue;
           }
         }
 
         const now = new Date();
+
         const obra = {
-          id: existing?.id || ('o' + Date.now() + Math.random().toString(36).slice(2,8)),
+          // IMPORTANTE:
+          // siempre se genera un ID nuevo.
+          // Por tanto, al elegir COPIAR nunca se modifica
+          // la Prioritaria existente.
+          id: ('o' + Date.now() + Math.random().toString(36).slice(2,8)),
+
           lat: coords.lat,
           lon: coords.lon,
+
           poblacion,
           direccion,
+
           pct: normalizePct(row["% CONSTRUCCION"]),
+
           gescal26,
-          tecnico: String(row["TECNICO/S"] || "").trim(),
-          estado: normalizeEstado(row["ESTADO"]),
-          promotor: String(row["PROMOTOR"] || "").trim(),
-          contacto: String(row["CONTACTO"] || "").trim(),
-          fechaReplanteo: excelDateToISO(row["FECHA PROXIMO REPLANTEO"]),
-          entregaLlaves: String(row["ENTREGA DE LLAVES"] || "").trim(),
-          fechaVisita: excelDateToISO(row["FECHA DE ULTIMA VISITA"]),
-          observaciones: String(row["OBSERVACIONES"] || "").trim(),
-          creado: existing?.creado || now.toISOString()
+
+          tecnico:
+            String(row["TECNICO/S"] || "").trim(),
+
+          estado:
+            normalizeEstado(row["ESTADO"]),
+
+          promotor:
+            String(row["PROMOTOR"] || "").trim(),
+
+          contacto:
+            String(row["CONTACTO"] || "").trim(),
+
+          fechaReplanteo:
+            excelDateToISO(row["FECHA PROXIMO REPLANTEO"]),
+
+          entregaLlaves:
+            String(row["ENTREGA DE LLAVES"] || "").trim(),
+
+          fechaVisita:
+            excelDateToISO(row["FECHA DE ULTIMA VISITA"]),
+
+          observaciones:
+            String(row["OBSERVACIONES"] || "").trim(),
+
+          creado:
+            now.toISOString()
         };
 
         const ok = await saveObra(obra);
-        if(!ok) throw new Error("Firestore no ha podido guardar la obra.");
 
-        if(existing) updated++; else imported++;
+        if(!ok){
+          throw new Error(
+            "Firestore no ha podido guardar la obra."
+          );
+        }
 
-        const idx = obras.findIndex(o => o.id === obra.id);
-        if(idx >= 0) obras[idx] = obra; else obras.unshift(obra);
+        // Siempre es una nueva obra.
+        imported++;
+
+        const idx =
+          obras.findIndex(o => o.id === obra.id);
+
+        if(idx >= 0)
+          obras[idx] = obra;
+        else
+          obras.unshift(obra);
+
       }catch(err){
-        console.error(`Error en fila ${fila}`, err);
-        errors.push(`Fila ${fila} (${identificador}): ${err.message || "error desconocido"}`);
+        console.error(
+          `Error en fila ${fila}`,
+          err
+        );
+
+        errors.push(
+          `Fila ${fila} (${identificador}): ${err.message || "error desconocido"}`
+        );
       }
     }
 
     renderAll();
 
-    let resumen = `Importación terminada.\n\n` +
+    let resumen =
+      `Importación terminada.\n\n` +
       `✅ Nuevas importadas: ${imported}\n` +
-      `🔄 Existentes actualizadas: ${updated}\n` +
-      `⏭️ No importadas porque se rechazó la actualización: ${refused.length}\n` +
+      `⏭️ Descartadas por el usuario: ${refused.length}\n` +
       `❌ Con error/omitidas: ${errors.length}`;
 
     if(refused.length){
-      resumen += `\n\n⏭️ NO IMPORTADAS:\n- ${refused.join("\n- ")}`;
+      resumen +=
+        `\n\n⏭️ DESCARTADAS:\n- ${refused.join("\n- ")}`;
     }
 
     if(errors.length){
-      resumen += `\n\n❌ ERRORES:\n- ${errors.join("\n- ")}`;
+      resumen +=
+        `\n\n❌ ERRORES:\n- ${errors.join("\n- ")}`;
     }
 
     alert(resumen);
   }
 
-  $('import-btn').addEventListener('click', () => $('import-file').click());
+  $('import-btn').addEventListener('click', () =>
+    $('import-file').click()
+  );
+
   $('import-file').addEventListener('change', async (e) => {
     const file = e.target.files?.[0];
+
     e.target.value = "";
+
     if(!file) return;
 
     const btn = $('import-btn');
     const original = btn.textContent;
+
     btn.disabled = true;
     btn.textContent = "Importando...";
 
     try{
       await importFromExcel(file);
     }catch(err){
-      console.error("Error importando Excel", err);
-      alert("No se pudo importar el Excel.\n\n" + (err.message || "Comprueba que tenga el formato esperado."));
+      console.error(
+        "Error importando Excel",
+        err
+      );
+
+      alert(
+        "No se pudo importar el Excel.\n\n" +
+        (err.message ||
+        "Comprueba que tenga el formato esperado.")
+      );
     }finally{
       btn.disabled = false;
       btn.textContent = original;
     }
   });
 
-  $('tech-name-input').addEventListener('change', (e)=> saveTechName(e.target.value.trim()));
+  $('tech-name-input').addEventListener(
+    'change',
+    (e) => saveTechName(e.target.value.trim())
+  );
 
   let userLocationMarker = null;
+
   $('locate-btn').addEventListener('click', () => {
     if(!navigator.geolocation){
-      alert("Este entorno no permite acceder a la ubicación del navegador. Marca el punto directamente tocando el mapa donde estés.");
+      alert(
+        "Este entorno no permite acceder a la ubicación del navegador. " +
+        "Marca el punto directamente tocando el mapa donde estés."
+      );
+
       return;
     }
+
     const btn = $('locate-btn');
+
     btn.classList.add('locating');
+
     const timeout = setTimeout(() => {
       btn.classList.remove('locating');
-      alert("No se ha podido obtener tu ubicación en este entorno (puede estar bloqueada por permisos). Marca el punto directamente tocando el mapa donde estés.");
+
+      alert(
+        "No se ha podido obtener tu ubicación en este entorno " +
+        "(puede estar bloqueada por permisos). Marca el punto directamente tocando el mapa donde estés."
+      );
     }, 6000);
+
     try{
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           clearTimeout(timeout);
+
           btn.classList.remove('locating');
-          const {latitude, longitude} = pos.coords;
-          map.setView([latitude, longitude], 16);
-          if(userLocationMarker) map.removeLayer(userLocationMarker);
-          userLocationMarker = L.circleMarker([latitude, longitude], {
-            radius: 9, color:'#fff', weight:3, fillColor:'#2e6fa8', fillOpacity:1
-          }).addTo(map).bindPopup("Tu ubicación actual").openPopup();
+
+          const {
+            latitude,
+            longitude
+          } = pos.coords;
+
+          map.setView(
+            [latitude, longitude],
+            16
+          );
+
+          if(userLocationMarker)
+            map.removeLayer(userLocationMarker);
+
+          userLocationMarker =
+            L.circleMarker(
+              [latitude, longitude],
+              {
+                radius:9,
+                color:'#fff',
+                weight:3,
+                fillColor:'#2e6fa8',
+                fillOpacity:1
+              }
+            )
+            .addTo(map)
+            .bindPopup("Tu ubicación actual")
+            .openPopup();
         },
+
         (err) => {
           clearTimeout(timeout);
+
           btn.classList.remove('locating');
-          let msg = "No se pudo obtener tu ubicación. Marca el punto directamente tocando el mapa donde estés.";
-          if(err.code === err.PERMISSION_DENIED) msg = "Este entorno ha bloqueado el permiso de ubicación. Marca el punto directamente tocando el mapa donde estés.";
+
+          let msg =
+            "No se pudo obtener tu ubicación. " +
+            "Marca el punto directamente tocando el mapa donde estés.";
+
+          if(err.code === err.PERMISSION_DENIED){
+            msg =
+              "Este entorno ha bloqueado el permiso de ubicación. " +
+              "Marca el punto directamente tocando el mapa donde estés.";
+          }
+
           alert(msg);
         },
-        { enableHighAccuracy:true, timeout:5500 }
+
+        {
+          enableHighAccuracy:true,
+          timeout:5500
+        }
       );
+
     }catch(e){
       clearTimeout(timeout);
+
       btn.classList.remove('locating');
-      alert("La ubicación no está disponible en este entorno. Marca el punto directamente tocando el mapa donde estés.");
+
+      alert(
+        "La ubicación no está disponible en este entorno. " +
+        "Marca el punto directamente tocando el mapa donde estés."
+      );
     }
   });
 
-  const MESES_ES = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+  const MESES_ES = [
+    'ENERO',
+    'FEBRERO',
+    'MARZO',
+    'ABRIL',
+    'MAYO',
+    'JUNIO',
+    'JULIO',
+    'AGOSTO',
+    'SEPTIEMBRE',
+    'OCTUBRE',
+    'NOVIEMBRE',
+    'DICIEMBRE'
+  ];
+
   function formatFechaISO(iso){
     if(!iso) return "";
+
     const [y,m,d] = iso.split('-');
+
     return `${d}/${m}/${y}`;
   }
+
   function mesDeFecha(iso){
     if(!iso) return "";
-    const m = Number(iso.split('-')[1]);
+
+    const m = Number(
+      iso.split('-')[1]
+    );
+
     return MESES_ES[m-1] || "";
   }
 
   // ---------- EXPORT ----------
   function buildRows(){
-    const list = getFiltered().length ? getFiltered() : obras;
+    const list =
+      getFiltered().length
+        ? getFiltered()
+        : obras;
+
     return list.map(o => ({
       "POBLACION": o.poblacion || "",
       "GESCAL26": o.gescal26 || "",
       "DIRECCION": o.direccion || "",
-      "% CONSTRUCCION": o.pct != null ? `${o.pct}%` : "",
-      "MES FECHA PROXIMO REPLANTEO": mesDeFecha(o.fechaReplanteo),
-      "FECHA PROXIMO REPLANTEO": formatFechaISO(o.fechaReplanteo),
-      "ENTREGA DE LLAVES": o.entregaLlaves || "",
-      "PROMOTOR": o.promotor || "",
-      "LINK DE GOOGLE": `${o.lat}, ${o.lon}`,
-      "CONTACTO": o.contacto || "",
-      "OBSERVACIONES": o.observaciones || "",
-      "ESTADO": o.estado === "DESCARTADA" ? "SIN PERMISO" : (o.estado || ""),
-      "FECHA DE ULTIMA VISITA": o.fechaVisita ? formatFechaISO(o.fechaVisita) : (o.creado ? new Date(o.creado).toLocaleDateString('es-ES') : ""),
-      "TECNICO/S": o.tecnico || ""
+      "% CONSTRUCCION":
+        o.pct != null
+          ? `${o.pct}%`
+          : "",
+      "MES FECHA PROXIMO REPLANTEO":
+        mesDeFecha(o.fechaReplanteo),
+      "FECHA PROXIMO REPLANTEO":
+        formatFechaISO(o.fechaReplanteo),
+      "ENTREGA DE LLAVES":
+        o.entregaLlaves || "",
+      "PROMOTOR":
+        o.promotor || "",
+      "LINK DE GOOGLE":
+        `${o.lat}, ${o.lon}`,
+      "CONTACTO":
+        o.contacto || "",
+      "OBSERVACIONES":
+        o.observaciones || "",
+      "ESTADO":
+        o.estado === "DESCARTADA"
+          ? "SIN PERMISO"
+          : (o.estado || ""),
+      "FECHA DE ULTIMA VISITA":
+        o.fechaVisita
+          ? formatFechaISO(o.fechaVisita)
+          : (
+            o.creado
+              ? new Date(o.creado).toLocaleDateString('es-ES')
+              : ""
+          ),
+      "TECNICO/S":
+        o.tecnico || ""
     }));
   }
 
   $('export-btn').addEventListener('click', () => {
     const rows = buildRows();
-    const ws = XLSX.utils.json_to_sheet(rows);
+
+    const ws =
+      XLSX.utils.json_to_sheet(rows);
+
     ws['!cols'] = [
-      {wch:16},{wch:14},{wch:34},{wch:12},{wch:14},{wch:14},{wch:14},
-      {wch:18},{wch:26},{wch:14},{wch:34},{wch:14},{wch:16},{wch:16}
+      {wch:16},
+      {wch:14},
+      {wch:34},
+      {wch:12},
+      {wch:14},
+      {wch:14},
+      {wch:14},
+      {wch:18},
+      {wch:26},
+      {wch:14},
+      {wch:34},
+      {wch:14},
+      {wch:16},
+      {wch:16}
     ];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "OBRAS DETECTADAS");
-    const stamp = new Date().toISOString().slice(0,10);
-    const quien = (techName || $('tech-name-input').value.trim() || 'sin nombre').replace(/[\\/:*?"<>|]/g, '').trim();
-    XLSX.writeFile(wb, `Control de Prioritarias ${stamp} ${quien}.xlsx`);
+
+    const wb =
+      XLSX.utils.book_new();
+
+    XLSX.utils.book_append_sheet(
+      wb,
+      ws,
+      "OBRAS DETECTADAS"
+    );
+
+    const stamp =
+      new Date()
+        .toISOString()
+        .slice(0,10);
+
+    const quien =
+      (
+        techName ||
+        $('tech-name-input').value.trim() ||
+        'sin nombre'
+      )
+      .replace(/[\\/:*?"<>|]/g, '')
+      .trim();
+
+    XLSX.writeFile(
+      wb,
+      `Control de Prioritarias ${stamp} ${quien}.xlsx`
+    );
   });
 
   // ---------- INIT ----------
   (function init(){
     loadTechName();
-    renderAll(); // pinta el estado vacío mientras llega la primera respuesta de Firebase
+
+    renderAll();
+
     startRealtimeSync();
   })();
 
