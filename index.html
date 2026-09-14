@@ -266,6 +266,8 @@
         <input type="date" id="f-fecha">
       </label>
       <button class="btn-secondary-flat" id="f-fecha-clear" title="Quitar filtro de día">✕</button>
+      <button class="btn-secondary-flat" id="import-btn" title="Importar obras desde un archivo Excel">Importar desde Excel</button>
+      <input type="file" id="import-file" accept=".xlsx,.xls" style="display:none;">
       <button class="export-btn" id="export-btn">Exportar a Excel</button>
     </div>
     <p class="count-line" id="count-line"></p>
@@ -793,6 +795,191 @@
     $(id).addEventListener('change', renderTable);
   });
   $('f-fecha-clear').addEventListener('click', () => { $('f-fecha').value = ""; renderTable(); });
+
+  // ---------- IMPORT ----------
+  function excelDateToISO(value){
+    if(value == null || value === "") return "";
+    if(value instanceof Date && !isNaN(value.getTime())){
+      return value.toISOString().slice(0,10);
+    }
+    if(typeof value === "number"){
+      // Excel serial date (SheetJS may return a number depending on options).
+      const utc = new Date(Date.UTC(1899, 11, 30) + value * 86400000);
+      return isNaN(utc.getTime()) ? "" : utc.toISOString().slice(0,10);
+    }
+    const text = String(value).trim();
+    let m = text.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if(m){
+      const d = m[1].padStart(2,'0'), mo = m[2].padStart(2,'0'), y = m[3];
+      return `${y}-${mo}-${d}`;
+    }
+    m = text.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+    if(m){
+      return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+    }
+    return "";
+  }
+
+  function parseCoords(value){
+    if(value == null) return null;
+    const text = String(value).trim().replace(/;/g, ',');
+    const m = text.match(/(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/);
+    if(!m) return null;
+    const lat = Number(m[1]), lon = Number(m[2]);
+    if(!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
+    return {lat, lon};
+  }
+
+  function normalizeEstado(value){
+    const v = String(value == null ? "" : value).trim().toUpperCase();
+    if(v === "SIN PERMISO" || v === "DESCARTADA") return "DESCARTADA";
+    if(v === "TERMINADO" || v === "TERMINADA" || v === "COBERTURA") return "TERMINADO";
+    if(v === "EN ESTUDIO") return "EN ESTUDIO";
+    return "PENDIENTE";
+  }
+
+  function normalizePct(value){
+    if(value == null || value === "") return null;
+    if(typeof value === "number") return value <= 1 ? value * 100 : value;
+    const n = parseFloat(String(value).replace('%','').replace(',','.').trim());
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function normalizeHeader(value){
+    return String(value == null ? "" : value)
+      .trim().toUpperCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+  }
+
+  async function importFromExcel(file){
+    const data = await file.arrayBuffer();
+    const wb = XLSX.read(data, {type:"array", cellDates:true});
+    const sheetName = wb.SheetNames.includes("OBRAS DETECTADAS") ? "OBRAS DETECTADAS" : wb.SheetNames[0];
+    const ws = wb.Sheets[sheetName];
+    const rawRows = XLSX.utils.sheet_to_json(ws, {defval:""});
+    if(!rawRows.length) throw new Error("El archivo no contiene filas de datos.");
+
+    const rows = rawRows.map((row, index) => {
+      const normalized = { __filaExcel: index + 2 };
+      Object.keys(row).forEach(k => normalized[normalizeHeader(k)] = row[k]);
+      return normalized;
+    });
+
+    let imported = 0;
+    let updated = 0;
+    let skipped = 0;
+    const errors = [];
+    const refused = [];
+
+    for(const row of rows){
+      const fila = row.__filaExcel;
+      const gescal26 = String(row["GESCAL26"] || "").trim();
+      const direccion = String(row["DIRECCION"] || "").trim();
+      const poblacion = String(row["POBLACION"] || "").trim();
+      const identificador = gescal26 || direccion || `fila ${fila}`;
+
+      try{
+        const coords = parseCoords(row["LINK DE GOOGLE"]);
+        if(!direccion && !coords){
+          skipped++;
+          errors.push(`Fila ${fila} (${identificador}): no tiene dirección ni coordenadas válidas.`);
+          continue;
+        }
+        if(!coords){
+          skipped++;
+          errors.push(`Fila ${fila} (${identificador}): no tiene coordenadas válidas en "LINK DE GOOGLE".`);
+          continue;
+        }
+
+        const existing = gescal26
+          ? obras.find(o => String(o.gescal26 || "").trim() === gescal26)
+          : null;
+
+        if(existing){
+          const wantsImport = confirm(
+            `El GESCAL26 ${gescal26} ya existe en la aplicación.\n\n` +
+            `Prioritaria del Excel:\n${direccion}${poblacion ? ` (${poblacion})` : ""}\n\n` +
+            `¿Quieres importar esta Prioritaria y actualizar la existente?`
+          );
+          if(!wantsImport){
+            refused.push(`Fila ${fila} — GESCAL26 ${gescal26}`);
+            continue;
+          }
+        }
+
+        const now = new Date();
+        const obra = {
+          id: existing?.id || ('o' + Date.now() + Math.random().toString(36).slice(2,8)),
+          lat: coords.lat,
+          lon: coords.lon,
+          poblacion,
+          direccion,
+          pct: normalizePct(row["% CONSTRUCCION"]),
+          gescal26,
+          tecnico: String(row["TECNICO/S"] || "").trim(),
+          estado: normalizeEstado(row["ESTADO"]),
+          promotor: String(row["PROMOTOR"] || "").trim(),
+          contacto: String(row["CONTACTO"] || "").trim(),
+          fechaReplanteo: excelDateToISO(row["FECHA PROXIMO REPLANTEO"]),
+          entregaLlaves: String(row["ENTREGA DE LLAVES"] || "").trim(),
+          fechaVisita: excelDateToISO(row["FECHA DE ULTIMA VISITA"]),
+          observaciones: String(row["OBSERVACIONES"] || "").trim(),
+          creado: existing?.creado || now.toISOString()
+        };
+
+        const ok = await saveObra(obra);
+        if(!ok) throw new Error("Firestore no ha podido guardar la obra.");
+
+        if(existing) updated++; else imported++;
+
+        const idx = obras.findIndex(o => o.id === obra.id);
+        if(idx >= 0) obras[idx] = obra; else obras.unshift(obra);
+      }catch(err){
+        console.error(`Error en fila ${fila}`, err);
+        errors.push(`Fila ${fila} (${identificador}): ${err.message || "error desconocido"}`);
+      }
+    }
+
+    renderAll();
+
+    let resumen = `Importación terminada.\n\n` +
+      `✅ Nuevas importadas: ${imported}\n` +
+      `🔄 Existentes actualizadas: ${updated}\n` +
+      `⏭️ No importadas porque se rechazó la actualización: ${refused.length}\n` +
+      `❌ Con error/omitidas: ${errors.length}`;
+
+    if(refused.length){
+      resumen += `\n\n⏭️ NO IMPORTADAS:\n- ${refused.join("\n- ")}`;
+    }
+
+    if(errors.length){
+      resumen += `\n\n❌ ERRORES:\n- ${errors.join("\n- ")}`;
+    }
+
+    alert(resumen);
+  }
+
+  $('import-btn').addEventListener('click', () => $('import-file').click());
+  $('import-file').addEventListener('change', async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if(!file) return;
+
+    const btn = $('import-btn');
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Importando...";
+
+    try{
+      await importFromExcel(file);
+    }catch(err){
+      console.error("Error importando Excel", err);
+      alert("No se pudo importar el Excel.\n\n" + (err.message || "Comprueba que tenga el formato esperado."));
+    }finally{
+      btn.disabled = false;
+      btn.textContent = original;
+    }
+  });
 
   $('tech-name-input').addEventListener('change', (e)=> saveTechName(e.target.value.trim()));
 
