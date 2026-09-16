@@ -35,6 +35,7 @@
   .mono{font-family:'IBM Plex Mono',monospace;}
   #app{display:flex;flex-direction:column;min-height:100vh;}
 
+  /* ---------- HEADER ---------- */
   header{
     background:
       linear-gradient(var(--navy),var(--navy)),
@@ -83,6 +84,7 @@
   .dot{width:8px;height:8px;border-radius:50%;flex:none;}
   .stat-chip b{font-family:'IBM Plex Mono',monospace;font-size:13px;}
 
+  /* ---------- MAP ---------- */
   #map-wrap{position:relative;}
   #map{height:52vh;min-height:340px;width:100%;}
   .map-search{
@@ -114,6 +116,7 @@
     50%{opacity:.5;}
   }
 
+  /* ---------- PANEL ---------- */
   #panel{flex:1;padding:16px 20px 60px;max-width:1180px;width:100%;margin:0 auto;}
   .filters{
     display:flex;gap:10px;flex-wrap:wrap;align-items:center;
@@ -170,6 +173,7 @@
     font-size:13.5px;border:1px dashed var(--line);background:#fff;
   }
 
+  /* ---------- MODAL ---------- */
   .overlay{
     position:fixed;inset:0;background:rgba(10,18,28,.55);
     display:none;align-items:center;justify-content:center;z-index:1000;padding:16px;
@@ -272,6 +276,7 @@
 
 </div>
 
+<!-- MODAL: nueva / editar obra -->
 <div class="overlay" id="overlay">
   <div class="modal">
     <div class="modal-head">
@@ -391,6 +396,7 @@
 
   const $ = (id) => document.getElementById(id);
 
+  // ---------- MAP ----------
   const map = L.map('map', {zoomControl:false}).setView([36.62, -4.75], 10);
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -400,6 +406,7 @@
 
   map.on('click', (e) => openModal(e.latlng, null));
 
+  // ---------- BUSCADOR DE UBICACIÓN ----------
   let searchMarker = null;
 
   async function buscarUbicacion(){
@@ -464,10 +471,11 @@
           fillOpacity:1
         }).addTo(map).bindPopup(data[0].display_name).openPopup();
       }else{
-        alert("No se ha encontrado esa dirección. Prueba a ser más concreto (calle, número, población) o escribe las coordenadas directamente (ej: 36.50, -4.75).");
+        alert("No se ha encontrado esa dirección. Prueba a ser más concreto.");
       }
+
     }catch(e){
-      alert("No se pudo buscar esa dirección en este momento. Prueba con coordenadas (ej: 36.50, -4.75) o inténtalo de nuevo.");
+      alert("No se pudo buscar esa dirección en este momento.");
     }finally{
       btn.disabled = false;
       btn.textContent = original;
@@ -480,8 +488,10 @@
     if(e.key === 'Enter') buscarUbicacion();
   });
 
+  // ---------- STORAGE ----------
   function loadTechName(){
     const stored = localStorage.getItem('technician-name');
+
     if(stored){
       techName = stored;
       $('tech-name-input').value = techName;
@@ -495,14 +505,21 @@
 
   function startRealtimeSync(){
     obrasCollection.onSnapshot((snapshot) => {
+
       obras = snapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }))
         .sort((a,b) => (b.creado||"").localeCompare(a.creado||""));
 
       renderAll();
+
     }, (err) => {
+
       console.error("Error de sincronización con Firebase", err);
-      alert("No se pudo conectar con la base de datos compartida. Revisa la configuración de Firebase (firebaseConfig) en el código.");
+
+      alert("No se pudo conectar con la base de datos compartida. Revisa la configuración de Firebase.");
     });
   }
 
@@ -527,6 +544,7 @@
     }
   }
 
+  // ---------- REVERSE GEOCODE ----------
   async function reverseGeocode(lat, lon){
     try{
       const controller = new AbortController();
@@ -549,17 +567,20 @@
       const calle = a.road || a.pedestrian || a.footway || "";
       const numero = a.house_number || "";
       const poblacion = a.town || a.village || a.city || a.municipality || "";
+
       const direccion = [calle, numero].filter(Boolean).join(" ");
 
       return {
         direccion: direccion || data.display_name || "",
         poblacion
       };
+
     }catch(e){
       return null;
     }
   }
 
+  // ---------- MODAL ----------
   function resetForm(){
     $('f-input-poblacion').value = "";
     $('f-input-pct').value = "";
@@ -576,6 +597,7 @@
   }
 
   async function openModal(latlng, existing){
+
     editingId = existing ? existing.id : null;
     pendingLatLng = latlng;
 
@@ -585,7 +607,8 @@
     $('modal-title').textContent = existing ? "Editar obra" : "Nueva obra";
 
     if(latlng){
-      $('modal-coords').textContent = `${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)}`;
+      $('modal-coords').textContent =
+        `${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)}`;
     }else{
       $('modal-coords').textContent = "Sin coordenadas";
     }
@@ -594,6 +617,7 @@
     $('overlay').classList.add('show');
 
     if(existing){
+
       $('f-input-poblacion').value = existing.poblacion || "";
       $('f-input-pct').value = existing.pct || "";
       $('f-input-gescal26').value = existing.gescal26 || "";
@@ -606,7 +630,9 @@
       $('f-input-entrega-llaves').value = existing.entregaLlaves || "";
       $('f-input-fecha-visita').value = existing.fechaVisita || "";
       $('f-input-obs').value = existing.observaciones || "";
-    }else if(latlng){
+
+    }else{
+
       $('geo-status').textContent = "Buscando dirección...";
 
       const geo = await reverseGeocode(latlng.lat, latlng.lng);
@@ -614,9 +640,12 @@
       if(geo && geo.direccion){
         $('f-input-direccion').value = geo.direccion;
         $('f-input-poblacion').value = geo.poblacion;
-        $('geo-status').textContent = "Dirección obtenida automáticamente — revísala antes de guardar.";
+
+        $('geo-status').textContent =
+          "Dirección obtenida automáticamente — revísala antes de guardar.";
       }else{
-        $('geo-status').textContent = "La búsqueda automática de dirección no está disponible aquí. Escríbela a mano (las coordenadas ya han quedado registradas).";
+        $('geo-status').textContent =
+          "La búsqueda automática de dirección no está disponible aquí. Escríbela a mano.";
       }
     }
   }
@@ -630,6 +659,7 @@
   $('cancel-btn').addEventListener('click', closeModal);
 
   $('save-btn').addEventListener('click', async () => {
+
     const direccion = $('f-input-direccion').value.trim();
 
     if(!direccion){
@@ -645,13 +675,29 @@
 
     const now = new Date();
 
+    const existing = editingId
+      ? obras.find(o => o.id === editingId)
+      : null;
+
     const obra = {
-      id: editingId || ('o' + Date.now() + Math.random().toString(36).slice(2,7)),
-      lat: pendingLatLng ? pendingLatLng.lat : null,
-      lon: pendingLatLng ? pendingLatLng.lng : null,
+      id: editingId ||
+        ('o' + Date.now() + Math.random().toString(36).slice(2,7)),
+
+      lat: pendingLatLng
+        ? pendingLatLng.lat
+        : (existing ? existing.lat : null),
+
+      lon: pendingLatLng
+        ? pendingLatLng.lng
+        : (existing ? existing.lon : null),
+
       poblacion: $('f-input-poblacion').value.trim(),
       direccion,
-      pct: $('f-input-pct').value ? Number($('f-input-pct').value) : null,
+
+      pct: $('f-input-pct').value
+        ? Number($('f-input-pct').value)
+        : null,
+
       gescal26: $('f-input-gescal26').value.trim(),
       tecnico: $('f-input-tecnico').value.trim(),
       estado: $('f-input-estado').value,
@@ -661,8 +707,9 @@
       entregaLlaves: $('f-input-entrega-llaves').value.trim(),
       fechaVisita: $('f-input-fecha-visita').value,
       observaciones: $('f-input-obs').value.trim(),
+
       creado: editingId
-        ? (obras.find(o=>o.id===editingId)?.creado || now.toISOString())
+        ? (existing?.creado || now.toISOString())
         : now.toISOString()
     };
 
@@ -671,10 +718,13 @@
     $('save-btn').disabled = false;
 
     if(ok){
+
       const idx = obras.findIndex(o => o.id === obra.id);
 
-      if(idx >= 0) obras[idx] = obra;
-      else obras.unshift(obra);
+      if(idx >= 0)
+        obras[idx] = obra;
+      else
+        obras.unshift(obra);
 
       renderAll();
       closeModal();
@@ -682,9 +732,11 @@
   });
 
   $('delete-btn').addEventListener('click', async () => {
+
     if(!editingId) return;
 
-    if(!confirm("¿Eliminar esta obra del mapa y del listado?")) return;
+    if(!confirm("¿Eliminar esta obra del mapa y del listado?"))
+      return;
 
     const ok = await deleteObraById(editingId);
 
@@ -695,72 +747,127 @@
     }
   });
 
+  // ---------- RENDER ----------
   function renderMarkers(){
+
     Object.values(markersById).forEach(m => map.removeLayer(m));
 
     markersById = {};
 
     obras.forEach(obra => {
 
-      // Si no tiene coordenadas, se guarda y aparece en la tabla,
-      // pero no se crea marcador en el mapa.
       if(
         !Number.isFinite(Number(obra.lat)) ||
         !Number.isFinite(Number(obra.lon))
-      ) return;
+      ){
+        return;
+      }
 
-      const color = ESTADO_COLOR[obra.estado] || ESTADO_COLOR.PENDIENTE;
+      const color =
+        ESTADO_COLOR[obra.estado] ||
+        ESTADO_COLOR.PENDIENTE;
 
-      const marker = L.circleMarker([obra.lat, obra.lon], {
-        radius: 8,
-        color: '#fff',
-        weight: 2,
-        fillColor: color,
-        fillOpacity: 1
-      }).addTo(map);
+      const marker = L.circleMarker(
+        [obra.lat, obra.lon],
+        {
+          radius: 8,
+          color: '#fff',
+          weight: 2,
+          fillColor: color,
+          fillOpacity: 1
+        }
+      ).addTo(map);
 
       const popupDiv = document.createElement('div');
 
       popupDiv.innerHTML = `
-        <div class="popup-title">${escapeHtml(obra.direccion || 'Sin dirección')}</div>
-        <div class="popup-meta">${escapeHtml(obra.poblacion || '')} · ${escapeHtml(obra.tecnico || 'sin técnico')}</div>
+        <div class="popup-title">
+          ${escapeHtml(obra.direccion || 'Sin dirección')}
+        </div>
+
+        <div class="popup-meta">
+          ${escapeHtml(obra.poblacion || '')}
+          ·
+          ${escapeHtml(obra.tecnico || 'sin técnico')}
+        </div>
 
         <select class="popup-select" data-id="${obra.id}">
-          <option value="PENDIENTE" ${obra.estado==='PENDIENTE'?'selected':''}>Pendiente</option>
-          <option value="EN ESTUDIO" ${obra.estado==='EN ESTUDIO'?'selected':''}>En estudio</option>
-          <option value="TERMINADO" ${obra.estado==='TERMINADO'?'selected':''}>Terminado</option>
-          <option value="DESCARTADA" ${obra.estado==='DESCARTADA'?'selected':''}>Sin permiso</option>
+          <option value="PENDIENTE" ${obra.estado==='PENDIENTE'?'selected':''}>
+            Pendiente
+          </option>
+
+          <option value="EN ESTUDIO" ${obra.estado==='EN ESTUDIO'?'selected':''}>
+            En estudio
+          </option>
+
+          <option value="TERMINADO" ${obra.estado==='TERMINADO'?'selected':''}>
+            Terminado
+          </option>
+
+          <option value="DESCARTADA" ${obra.estado==='DESCARTADA'?'selected':''}>
+            Sin permiso
+          </option>
         </select>
 
         <div class="popup-actions">
-          <button data-action="maps" data-id="${obra.id}">📍 Google Maps</button>
-          <button data-action="edit" data-id="${obra.id}">Editar</button>
+          <button data-action="maps" data-id="${obra.id}">
+            📍 Google Maps
+          </button>
+
+          <button data-action="edit" data-id="${obra.id}">
+            Editar
+          </button>
         </div>
       `;
 
-      popupDiv.querySelector('select').addEventListener('change', async (ev) => {
-        const newEstado = ev.target.value;
-        const updated = {...obra, estado:newEstado};
+      popupDiv.querySelector('select').addEventListener(
+        'change',
+        async (ev) => {
 
-        const ok = await saveObra(updated);
+          const newEstado = ev.target.value;
 
-        if(ok){
-          const idx = obras.findIndex(o=>o.id===obra.id);
-          obras[idx] = updated;
-          renderAll();
+          const updated = {
+            ...obra,
+            estado:newEstado
+          };
+
+          const ok = await saveObra(updated);
+
+          if(ok){
+
+            const idx =
+              obras.findIndex(o=>o.id===obra.id);
+
+            obras[idx] = updated;
+
+            renderAll();
+          }
         }
-      });
+      );
 
-      popupDiv.querySelector('[data-action="maps"]').addEventListener('click', () => {
+      popupDiv.querySelector(
+        '[data-action="maps"]'
+      ).addEventListener('click', () => {
+
         const mapsUrl =
-          `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(obra.lat + ',' + obra.lon)}`;
+          `https://www.google.com/maps/dir/?api=1&destination=` +
+          encodeURIComponent(
+            obra.lat + ',' + obra.lon
+          );
 
         window.open(mapsUrl, '_blank');
       });
 
-      popupDiv.querySelector('[data-action="edit"]').addEventListener('click', () => {
+      popupDiv.querySelector(
+        '[data-action="edit"]'
+      ).addEventListener('click', () => {
+
         map.closePopup();
-        openModal(L.latLng(obra.lat, obra.lon), obra);
+
+        openModal(
+          L.latLng(obra.lat, obra.lon),
+          obra
+        );
       });
 
       marker.bindPopup(popupDiv);
@@ -783,6 +890,7 @@
   }
 
   function renderStats(){
+
     const counts = {
       PENDIENTE:0,
       "EN ESTUDIO":0,
@@ -791,7 +899,8 @@
     };
 
     obras.forEach(o => {
-      if(counts[o.estado] !== undefined) counts[o.estado]++;
+      if(counts[o.estado] !== undefined)
+        counts[o.estado]++;
     });
 
     const bar = $('stats-bar');
@@ -824,12 +933,17 @@
   }
 
   function populateFilterOptions(){
+
     const poblaciones = [
-      ...new Set(obras.map(o=>o.poblacion).filter(Boolean))
+      ...new Set(
+        obras.map(o=>o.poblacion).filter(Boolean)
+      )
     ].sort();
 
     const tecnicos = [
-      ...new Set(obras.map(o=>o.tecnico).filter(Boolean))
+      ...new Set(
+        obras.map(o=>o.tecnico).filter(Boolean)
+      )
     ].sort();
 
     const selP = $('f-poblacion');
@@ -840,22 +954,29 @@
 
     selP.innerHTML =
       '<option value="">Población: todas</option>' +
-      poblaciones.map(p =>
-        `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`
-      ).join('');
+      poblaciones
+        .map(p =>
+          `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`
+        )
+        .join('');
 
     selT.innerHTML =
       '<option value="">Técnico: todos</option>' +
-      tecnicos.map(t =>
-        `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`
-      ).join('');
+      tecnicos
+        .map(t =>
+          `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`
+        )
+        .join('');
 
     selP.value = curP;
     selT.value = curT;
   }
 
   function getFiltered(){
-    const q = $('f-search').value.trim().toLowerCase();
+
+    const q =
+      $('f-search').value.trim().toLowerCase();
+
     const fp = $('f-poblacion').value;
     const ft = $('f-tecnico').value;
     const fe = $('f-estado').value;
@@ -863,20 +984,31 @@
 
     return obras.filter(o => {
 
-      if(fp && o.poblacion !== fp) return false;
-      if(ft && o.tecnico !== ft) return false;
-      if(fe && o.estado !== fe) return false;
+      if(fp && o.poblacion !== fp)
+        return false;
+
+      if(ft && o.tecnico !== ft)
+        return false;
+
+      if(fe && o.estado !== fe)
+        return false;
 
       if(fd){
-        const diaObra = o.creado ? o.creado.slice(0,10) : "";
-        if(diaObra !== fd) return false;
+
+        const diaObra =
+          o.creado ? o.creado.slice(0,10) : "";
+
+        if(diaObra !== fd)
+          return false;
       }
 
       if(q){
+
         const hay =
           `${o.direccion||''} ${o.poblacion||''}`.toLowerCase();
 
-        if(!hay.includes(q)) return false;
+        if(!hay.includes(q))
+          return false;
       }
 
       return true;
@@ -884,6 +1016,7 @@
   }
 
   function renderTable(){
+
     const list = getFiltered();
 
     $('count-line').textContent =
@@ -892,38 +1025,76 @@
     const wrap = $('table-wrap');
 
     if(list.length === 0){
+
       wrap.innerHTML =
-        `<div class="empty-state">Aún no hay obras marcadas. Toca el mapa para añadir la primera.</div>`;
+        `<div class="empty-state">
+          Aún no hay obras marcadas.
+          Toca el mapa para añadir la primera.
+        </div>`;
 
       return;
     }
 
     const rows = list.map(o => `
+
       <tr data-id="${o.id}">
-        <td>${escapeHtml(o.poblacion||'—')}</td>
-        <td>${escapeHtml(o.direccion||'—')}</td>
+
         <td>
-          <span class="badge" style="background:${ESTADO_COLOR[o.estado]}">
+          ${escapeHtml(o.poblacion||'—')}
+        </td>
+
+        <td>
+          ${escapeHtml(o.direccion||'—')}
+        </td>
+
+        <td>
+          <span
+            class="badge"
+            style="background:${ESTADO_COLOR[o.estado]}"
+          >
             ${ESTADO_LABEL[o.estado]||o.estado}
           </span>
         </td>
-        <td>${escapeHtml(o.tecnico||'—')}</td>
-        <td class="mono">
-          ${o.creado ? new Date(o.creado).toLocaleDateString('es-ES') : '—'}
+
+        <td>
+          ${escapeHtml(o.tecnico||'—')}
         </td>
-        <td class="obs-cell">${escapeHtml(o.observaciones||'')}</td>
+
+        <td class="mono">
+          ${o.fechaVisita
+            ? formatFechaISO(o.fechaVisita)
+            : '—'}
+        </td>
+
+        <td class="obs-cell">
+          ${escapeHtml(o.observaciones||'')}
+        </td>
+
         <td>
           <div class="row-actions">
-            <button data-action="ver">Ver en mapa</button>
-            <button data-action="maps">Google Maps</button>
-            <button data-action="editar">Editar</button>
+
+            <button data-action="ver">
+              Ver en mapa
+            </button>
+
+            <button data-action="maps">
+              Google Maps
+            </button>
+
+            <button data-action="editar">
+              Editar
+            </button>
+
           </div>
         </td>
+
       </tr>
+
     `).join('');
 
     wrap.innerHTML = `
       <table>
+
         <thead>
           <tr>
             <th>Población</th>
@@ -935,60 +1106,113 @@
             <th></th>
           </tr>
         </thead>
-        <tbody>${rows}</tbody>
+
+        <tbody>
+          ${rows}
+        </tbody>
+
       </table>
     `;
 
-    wrap.querySelectorAll('button[data-action="ver"]').forEach(btn=>{
+    wrap.querySelectorAll(
+      'button[data-action="ver"]'
+    ).forEach(btn=>{
+
       btn.addEventListener('click', (e)=>{
-        const id = e.target.closest('tr').dataset.id;
-        const o = obras.find(x=>x.id===id);
+
+        const id =
+          e.target.closest('tr').dataset.id;
+
+        const o =
+          obras.find(x=>x.id===id);
 
         if(
           o &&
           Number.isFinite(Number(o.lat)) &&
           Number.isFinite(Number(o.lon))
         ){
-          map.setView([o.lat,o.lon], 17);
+
+          map.setView(
+            [o.lat,o.lon],
+            17
+          );
+
           markersById[id]?.openPopup();
-          window.scrollTo({top:0, behavior:'smooth'});
+
+          window.scrollTo({
+            top:0,
+            behavior:'smooth'
+          });
+
         }else{
-          alert("Esta Prioritaria no tiene coordenadas.");
+
+          alert(
+            "Esta prioritaria no tiene coordenadas."
+          );
         }
       });
     });
 
-    wrap.querySelectorAll('button[data-action="maps"]').forEach(btn=>{
+    wrap.querySelectorAll(
+      'button[data-action="maps"]'
+    ).forEach(btn=>{
+
       btn.addEventListener('click', (e)=>{
-        const id = e.target.closest('tr').dataset.id;
-        const o = obras.find(x=>x.id===id);
+
+        const id =
+          e.target.closest('tr').dataset.id;
+
+        const o =
+          obras.find(x=>x.id===id);
 
         if(
           o &&
           Number.isFinite(Number(o.lat)) &&
           Number.isFinite(Number(o.lon))
         ){
-          const mapsUrl =
-            `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(o.lat + ',' + o.lon)}`;
 
-          window.open(mapsUrl, '_blank');
+          const mapsUrl =
+            `https://www.google.com/maps/dir/?api=1&destination=` +
+            encodeURIComponent(
+              o.lat + ',' + o.lon
+            );
+
+          window.open(
+            mapsUrl,
+            '_blank'
+          );
+
         }else{
-          alert("Esta Prioritaria no tiene coordenadas.");
+
+          alert(
+            "Esta prioritaria no tiene coordenadas."
+          );
         }
       });
     });
 
-    wrap.querySelectorAll('button[data-action="editar"]').forEach(btn=>{
+    wrap.querySelectorAll(
+      'button[data-action="editar"]'
+    ).forEach(btn=>{
+
       btn.addEventListener('click', (e)=>{
-        const id = e.target.closest('tr').dataset.id;
-        const o = obras.find(x=>x.id===id);
+
+        const id =
+          e.target.closest('tr').dataset.id;
+
+        const o =
+          obras.find(x=>x.id===id);
 
         if(o){
-          openModal(
+
+          const latlng =
             Number.isFinite(Number(o.lat)) &&
             Number.isFinite(Number(o.lon))
               ? L.latLng(o.lat,o.lon)
-              : null,
+              : null;
+
+          openModal(
+            latlng,
             o
           );
         }
@@ -1003,51 +1227,91 @@
     renderTable();
   }
 
-  ['f-search','f-poblacion','f-tecnico','f-estado','f-fecha'].forEach(id=>{
-    $(id).addEventListener('input', renderTable);
-    $(id).addEventListener('change', renderTable);
+  [
+    'f-search',
+    'f-poblacion',
+    'f-tecnico',
+    'f-estado',
+    'f-fecha'
+  ].forEach(id=>{
+
+    $(id).addEventListener(
+      'input',
+      renderTable
+    );
+
+    $(id).addEventListener(
+      'change',
+      renderTable
+    );
   });
 
-  $('f-fecha-clear').addEventListener('click', () => {
-    $('f-fecha').value = "";
-    renderTable();
-  });
+  $('f-fecha-clear').addEventListener(
+    'click',
+    () => {
+      $('f-fecha').value = "";
+      renderTable();
+    }
+  );
 
   // ---------- IMPORT ----------
-
   function excelDateToISO(value){
-    if(value == null || value === "") return "";
 
-    if(value instanceof Date && !isNaN(value.getTime())){
-      return value.toISOString().slice(0,10);
+    if(value == null || value === "")
+      return "";
+
+    if(
+      value instanceof Date &&
+      !isNaN(value.getTime())
+    ){
+
+      return value
+        .toISOString()
+        .slice(0,10);
     }
 
     if(typeof value === "number"){
+
       const utc =
-        new Date(Date.UTC(1899, 11, 30) + value * 86400000);
+        new Date(
+          Date.UTC(1899, 11, 30) +
+          value * 86400000
+        );
 
       return isNaN(utc.getTime())
         ? ""
         : utc.toISOString().slice(0,10);
     }
 
-    const text = String(value).trim();
+    const text =
+      String(value).trim();
 
     let m =
-      text.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+      text.match(
+        /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/
+      );
 
     if(m){
-      const d = m[1].padStart(2,'0');
-      const mo = m[2].padStart(2,'0');
-      const y = m[3];
+
+      const d =
+        m[1].padStart(2,'0');
+
+      const mo =
+        m[2].padStart(2,'0');
+
+      const y =
+        m[3];
 
       return `${y}-${mo}-${d}`;
     }
 
     m =
-      text.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+      text.match(
+        /^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/
+      );
 
     if(m){
+
       return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
     }
 
@@ -1055,18 +1319,28 @@
   }
 
   function parseCoords(value){
-    if(value == null) return null;
+
+    if(value == null)
+      return null;
 
     const text =
-      String(value).trim().replace(/;/g, ',');
+      String(value)
+        .trim()
+        .replace(/;/g, ',');
 
     const m =
-      text.match(/(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/);
+      text.match(
+        /(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/
+      );
 
-    if(!m) return null;
+    if(!m)
+      return null;
 
-    const lat = Number(m[1]);
-    const lon = Number(m[2]);
+    const lat =
+      Number(m[1]);
+
+    const lon =
+      Number(m[2]);
 
     if(
       !Number.isFinite(lat) ||
@@ -1077,16 +1351,25 @@
       return null;
     }
 
-    return {lat, lon};
+    return {
+      lat,
+      lon
+    };
   }
 
   function normalizeEstado(value){
-    const v =
-      String(value == null ? "" : value)
-        .trim()
-        .toUpperCase();
 
-    if(v === "SIN PERMISO" || v === "DESCARTADA")
+    const v =
+      String(
+        value == null ? "" : value
+      )
+      .trim()
+      .toUpperCase();
+
+    if(
+      v === "SIN PERMISO" ||
+      v === "DESCARTADA"
+    )
       return "DESCARTADA";
 
     if(
@@ -1103,10 +1386,17 @@
   }
 
   function normalizePct(value){
-    if(value == null || value === "") return null;
+
+    if(
+      value == null ||
+      value === ""
+    )
+      return null;
 
     if(typeof value === "number")
-      return value <= 1 ? value * 100 : value;
+      return value <= 1
+        ? value * 100
+        : value;
 
     const n =
       parseFloat(
@@ -1116,49 +1406,76 @@
           .trim()
       );
 
-    return Number.isFinite(n) ? n : null;
+    return Number.isFinite(n)
+      ? n
+      : null;
   }
 
   function normalizeHeader(value){
-    return String(value == null ? "" : value)
-      .trim()
-      .toUpperCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g,"");
+
+    return String(
+      value == null ? "" : value
+    )
+    .trim()
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g,"");
   }
 
   async function importFromExcel(file){
-    const data = await file.arrayBuffer();
 
-    const wb = XLSX.read(data, {
-      type:"array",
-      cellDates:true
-    });
+    const data =
+      await file.arrayBuffer();
 
-    const sheetName =
-      wb.SheetNames.includes("OBRAS DETECTADAS")
-        ? "OBRAS DETECTADAS"
-        : wb.SheetNames[0];
-
-    const ws = wb.Sheets[sheetName];
-
-    const rawRows =
-      XLSX.utils.sheet_to_json(ws, {defval:""});
-
-    if(!rawRows.length)
-      throw new Error("El archivo no contiene filas de datos.");
-
-    const rows = rawRows.map((row, index) => {
-      const normalized = {
-        __filaExcel: index + 2
-      };
-
-      Object.keys(row).forEach(k =>
-        normalized[normalizeHeader(k)] = row[k]
+    const wb =
+      XLSX.read(
+        data,
+        {
+          type:"array",
+          cellDates:true
+        }
       );
 
-      return normalized;
-    });
+    const sheetName =
+      wb.SheetNames.includes(
+        "OBRAS DETECTADAS"
+      )
+      ? "OBRAS DETECTADAS"
+      : wb.SheetNames[0];
+
+    const ws =
+      wb.Sheets[sheetName];
+
+    const rawRows =
+      XLSX.utils.sheet_to_json(
+        ws,
+        {
+          defval:""
+        }
+      );
+
+    if(!rawRows.length)
+      throw new Error(
+        "El archivo no contiene filas de datos."
+      );
+
+    const rows =
+      rawRows.map(
+        (row,index) => {
+
+          const normalized = {
+            __filaExcel:index + 2
+          };
+
+          Object.keys(row).forEach(k =>
+            normalized[
+              normalizeHeader(k)
+            ] = row[k]
+          );
+
+          return normalized;
+        }
+      );
 
     let imported = 0;
     let updated = 0;
@@ -1169,39 +1486,38 @@
 
     for(const row of rows){
 
-      const fila = row.__filaExcel;
+      const fila =
+        row.__filaExcel;
 
       const gescal26 =
-        String(row["GESCAL26"] || "").trim();
+        String(
+          row["GESCAL26"] || ""
+        ).trim();
 
       const direccion =
-        String(row["DIRECCION"] || "").trim();
+        String(
+          row["DIRECCION"] || ""
+        ).trim();
 
       const poblacion =
-        String(row["POBLACION"] || "").trim();
+        String(
+          row["POBLACION"] || ""
+        ).trim();
 
       const identificador =
-        gescal26 || direccion || `fila ${fila}`;
+        gescal26 ||
+        direccion ||
+        `fila ${fila}`;
 
       try{
 
         const coords =
-          parseCoords(row["LINK DE GOOGLE"]);
-
-        /*
-         * LAS COORDENADAS SON OPCIONALES.
-         *
-         * Si existe dirección pero no existe LINK DE GOOGLE,
-         * la Prioritaria se importa igualmente.
-         *
-         * Se guardan lat/lon como null.
-         * No aparecerá marcador en el mapa.
-         *
-         * Solo se descarta si NO hay ni dirección
-         * ni coordenadas válidas.
-         */
+          parseCoords(
+            row["LINK DE GOOGLE"]
+          );
 
         if(!direccion && !coords){
+
           skipped++;
 
           errors.push(
@@ -1211,11 +1527,15 @@
           continue;
         }
 
-        const normalizarTexto = (valor) =>
-          String(valor || "")
-            .trim()
-            .toLowerCase()
-            .replace(/\s+/g, " ");
+        // Las coordenadas son opcionales.
+        // Si faltan, se guarda la prioritaria igualmente.
+
+        const normalizarTexto =
+          (valor) =>
+            String(valor || "")
+              .trim()
+              .toLowerCase()
+              .replace(/\s+/g, " ");
 
         const gescalNormalizado =
           normalizarTexto(gescal26);
@@ -1223,61 +1543,85 @@
         const direccionNormalizada =
           normalizarTexto(direccion);
 
-        /*
-         * Comprobación de duplicados:
-         * - mismo GESCAL26
-         * - o misma dirección
-         */
+        const existing =
+          obras.find(o => {
 
-        const existing = obras.find(o => {
+            const mismoGescal =
+              gescalNormalizado &&
+              normalizarTexto(
+                o.gescal26
+              ) === gescalNormalizado;
 
-          const mismoGescal =
-            gescalNormalizado &&
-            normalizarTexto(o.gescal26) === gescalNormalizado;
+            const mismaDireccion =
+              direccionNormalizada &&
+              normalizarTexto(
+                o.direccion
+              ) === direccionNormalizada;
 
-          const mismaDireccion =
-            direccionNormalizada &&
-            normalizarTexto(o.direccion) === direccionNormalizada;
-
-          return mismoGescal || mismaDireccion;
-        });
+            return (
+              mismoGescal ||
+              mismaDireccion
+            );
+          });
 
         if(existing){
 
           const coincideGescal =
             gescalNormalizado &&
-            normalizarTexto(existing.gescal26) === gescalNormalizado;
+            normalizarTexto(
+              existing.gescal26
+            ) === gescalNormalizado;
 
           const coincideDireccion =
             direccionNormalizada &&
-            normalizarTexto(existing.direccion) === direccionNormalizada;
+            normalizarTexto(
+              existing.direccion
+            ) === direccionNormalizada;
 
           const motivo =
-            coincideGescal && coincideDireccion
+            coincideGescal &&
+            coincideDireccion
               ? `GESCAL26 ${gescal26} y dirección "${direccion}"`
               : coincideGescal
                 ? `GESCAL26 ${gescal26}`
                 : `dirección "${direccion}"`;
 
-          const wantsImport = confirm(
-            `Esta Prioritaria ya existe en la aplicación.\n\n` +
-            `Coincidencia encontrada por: ${motivo}\n\n` +
+          const wantsImport =
+            confirm(
+              `Esta Prioritaria ya existe en la aplicación.\n\n` +
+              `Coincidencia encontrada por: ${motivo}\n\n` +
 
-            `Existente:\n` +
-            `${existing.direccion || "Sin dirección"}` +
-            `${existing.gescal26 ? `\nGESCAL26: ${existing.gescal26}` : ""}\n\n` +
+              `Existente:\n` +
+              `${existing.direccion || "Sin dirección"}` +
 
-            `Prioritaria del Excel:\n` +
-            `${direccion}` +
-            `${poblacion ? ` (${poblacion})` : ""}` +
-            `${gescal26 ? `\nGESCAL26: ${gescal26}` : ""}\n\n` +
+              `${
+                existing.gescal26
+                  ? `\nGESCAL26: ${existing.gescal26}`
+                  : ""
+              }\n\n` +
 
-            `¿Quieres COPIAR esta Prioritaria como una nueva o DESCARTARla?\n\n` +
-            `Aceptar = COPIAR\n` +
-            `Cancelar = DESCARTAR`
-          );
+              `Prioritaria del Excel:\n` +
+              `${direccion}` +
+
+              `${
+                poblacion
+                  ? ` (${poblacion})`
+                  : ""
+              }` +
+
+              `${
+                gescal26
+                  ? `\nGESCAL26: ${gescal26}`
+                  : ""
+              }\n\n` +
+
+              `¿Quieres COPIAR esta Prioritaria como una nueva o DESCARTARla?\n\n` +
+              `Aceptar = COPIAR\n` +
+              `Cancelar = DESCARTAR`
+            );
 
           if(!wantsImport){
+
             refused.push(
               `Fila ${fila} — ${gescal26 || direccion}`
             );
@@ -1286,47 +1630,57 @@
           }
         }
 
-        const now = new Date();
+        const now =
+          new Date();
 
         const obra = {
 
-          /*
-           * Siempre se crea un ID NUEVO.
-           * Incluso cuando existe duplicado y se pulsa COPIAR.
-           */
           id:
-            ('o' +
+            'o' +
             Date.now() +
-            Math.random().toString(36).slice(2,8)),
+            Math.random()
+              .toString(36)
+              .slice(2,8),
 
-          /*
-           * Si no hay coordenadas:
-           * lat = null
-           * lon = null
-           */
-          lat: coords ? coords.lat : null,
-          lon: coords ? coords.lon : null,
+          lat:
+            coords
+              ? coords.lat
+              : null,
+
+          lon:
+            coords
+              ? coords.lon
+              : null,
 
           poblacion,
-
           direccion,
 
           pct:
-            normalizePct(row["% CONSTRUCCION"]),
+            normalizePct(
+              row["% CONSTRUCCION"]
+            ),
 
           gescal26,
 
           tecnico:
-            String(row["TECNICO/S"] || "").trim(),
+            String(
+              row["TECNICO/S"] || ""
+            ).trim(),
 
           estado:
-            normalizeEstado(row["ESTADO"]),
+            normalizeEstado(
+              row["ESTADO"]
+            ),
 
           promotor:
-            String(row["PROMOTOR"] || "").trim(),
+            String(
+              row["PROMOTOR"] || ""
+            ).trim(),
 
           contacto:
-            String(row["CONTACTO"] || "").trim(),
+            String(
+              row["CONTACTO"] || ""
+            ).trim(),
 
           fechaReplanteo:
             excelDateToISO(
@@ -1360,10 +1714,6 @@
             "Firestore no ha podido guardar la obra."
           );
 
-        /*
-         * El duplicado se COPIA como documento nuevo.
-         * No se modifica el documento existente.
-         */
         if(existing)
           updated++;
         else
@@ -1406,12 +1756,14 @@
       `❌ Con error/omitidas: ${errors.length}`;
 
     if(refused.length){
+
       resumen +=
         `\n\n⏭️ NO IMPORTADAS:\n- ` +
         refused.join("\n- ");
     }
 
     if(errors.length){
+
       resumen +=
         `\n\n❌ ERRORES:\n- ` +
         errors.join("\n- ");
@@ -1434,7 +1786,8 @@
 
       e.target.value = "";
 
-      if(!file) return;
+      if(!file)
+        return;
 
       const btn =
         $('import-btn');
@@ -1472,11 +1825,13 @@
 
   $('tech-name-input').addEventListener(
     'change',
-    (e) => saveTechName(
-      e.target.value.trim()
-    )
+    (e) =>
+      saveTechName(
+        e.target.value.trim()
+      )
   );
 
+  // ---------- UBICACIÓN ----------
   let userLocationMarker = null;
 
   $('locate-btn').addEventListener(
@@ -1486,8 +1841,7 @@
       if(!navigator.geolocation){
 
         alert(
-          "Este entorno no permite acceder a la ubicación del navegador. " +
-          "Marca el punto directamente tocando el mapa donde estés."
+          "Este entorno no permite acceder a la ubicación del navegador. Marca el punto directamente tocando el mapa donde estés."
         );
 
         return;
@@ -1501,15 +1855,15 @@
       const timeout =
         setTimeout(() => {
 
-          btn.classList.remove('locating');
-
-          alert(
-            "No se ha podido obtener tu ubicación en este entorno " +
-            "(puede estar bloqueada por permisos). " +
-            "Marca el punto directamente tocando el mapa donde estés."
+          btn.classList.remove(
+            'locating'
           );
 
-        }, 6000);
+          alert(
+            "No se ha podido obtener tu ubicación en este entorno (puede estar bloqueada por permisos). Marca el punto directamente tocando el mapa donde estés."
+          );
+
+        },6000);
 
       try{
 
@@ -1519,7 +1873,9 @@
 
             clearTimeout(timeout);
 
-            btn.classList.remove('locating');
+            btn.classList.remove(
+              'locating'
+            );
 
             const {
               latitude,
@@ -1527,7 +1883,7 @@
             } = pos.coords;
 
             map.setView(
-              [latitude, longitude],
+              [latitude,longitude],
               16
             );
 
@@ -1538,9 +1894,9 @@
 
             userLocationMarker =
               L.circleMarker(
-                [latitude, longitude],
+                [latitude,longitude],
                 {
-                  radius: 9,
+                  radius:9,
                   color:'#fff',
                   weight:3,
                   fillColor:'#2e6fa8',
@@ -1558,19 +1914,20 @@
 
             clearTimeout(timeout);
 
-            btn.classList.remove('locating');
+            btn.classList.remove(
+              'locating'
+            );
 
             let msg =
-              "No se pudo obtener tu ubicación. " +
-              "Marca el punto directamente tocando el mapa donde estés.";
+              "No se pudo obtener tu ubicación. Marca el punto directamente tocando el mapa donde estés.";
 
             if(
               err.code ===
               err.PERMISSION_DENIED
             ){
+
               msg =
-                "Este entorno ha bloqueado el permiso de ubicación. " +
-                "Marca el punto directamente tocando el mapa donde estés.";
+                "Este entorno ha bloqueado el permiso de ubicación. Marca el punto directamente tocando el mapa donde estés.";
             }
 
             alert(msg);
@@ -1586,11 +1943,12 @@
 
         clearTimeout(timeout);
 
-        btn.classList.remove('locating');
+        btn.classList.remove(
+          'locating'
+        );
 
         alert(
-          "La ubicación no está disponible en este entorno. " +
-          "Marca el punto directamente tocando el mapa donde estés."
+          "La ubicación no está disponible en este entorno. Marca el punto directamente tocando el mapa donde estés."
         );
       }
     }
@@ -1612,25 +1970,33 @@
   ];
 
   function formatFechaISO(iso){
-    if(!iso) return "";
 
-    const [y,m,d] =
-      iso.split('-');
+    if(!iso)
+      return "";
+
+    const [
+      y,
+      m,
+      d
+    ] = iso.split('-');
 
     return `${d}/${m}/${y}`;
   }
 
   function mesDeFecha(iso){
-    if(!iso) return "";
+
+    if(!iso)
+      return "";
 
     const m =
-      Number(iso.split('-')[1]);
+      Number(
+        iso.split('-')[1]
+      );
 
     return MESES_ES[m-1] || "";
   }
 
   // ---------- EXPORT ----------
-
   function buildRows(){
 
     const filtered =
@@ -1673,17 +2039,17 @@
       "PROMOTOR":
         o.promotor || "",
 
-      /*
-       * Si no hay coordenadas,
-       * el Excel queda con LINK DE GOOGLE vacío.
-       */
       "LINK DE GOOGLE":
         (
-          Number.isFinite(Number(o.lat)) &&
-          Number.isFinite(Number(o.lon))
+          Number.isFinite(
+            Number(o.lat)
+          ) &&
+          Number.isFinite(
+            Number(o.lon)
+          )
         )
-          ? `${o.lat}, ${o.lon}`
-          : "",
+        ? `${o.lat}, ${o.lon}`
+        : "",
 
       "CONTACTO":
         o.contacto || "",
@@ -1698,11 +2064,16 @@
 
       "FECHA DE ULTIMA VISITA":
         o.fechaVisita
-          ? formatFechaISO(o.fechaVisita)
+          ? formatFechaISO(
+              o.fechaVisita
+            )
           : (
               o.creado
-                ? new Date(o.creado)
-                    .toLocaleDateString('es-ES')
+                ? new Date(
+                    o.creado
+                  ).toLocaleDateString(
+                    'es-ES'
+                  )
                 : ""
             ),
 
@@ -1719,7 +2090,9 @@
         buildRows();
 
       const ws =
-        XLSX.utils.json_to_sheet(rows);
+        XLSX.utils.json_to_sheet(
+          rows
+        );
 
       ws['!cols'] = [
         {wch:16},
@@ -1755,7 +2128,9 @@
       const quien =
         (
           techName ||
-          $('tech-name-input').value.trim() ||
+          $('tech-name-input')
+            .value
+            .trim() ||
           'sin nombre'
         )
         .replace(
@@ -1772,7 +2147,6 @@
   );
 
   // ---------- INIT ----------
-
   (function init(){
 
     loadTechName();
