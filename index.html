@@ -564,4 +564,1226 @@
     $('f-input-poblacion').value = "";
     $('f-input-pct').value = "";
     $('f-input-gescal26').value = "";
-    $('f-input-direcci
+    $('f-input-direccion').value = "";
+    $('f-input-tecnico').value = techName || "";
+    $('f-input-estado').value = "PENDIENTE";
+    $('f-input-promotor').value = "";
+    $('f-input-contacto').value = "";
+    $('f-input-fecha-replanteo').value = "";
+    $('f-input-entrega-llaves').value = "";
+    $('f-input-fecha-visita').value = new Date().toISOString().slice(0,10);
+    $('f-input-obs').value = "";
+  }
+
+  async function openModal(latlng, existing){
+    editingId = existing ? existing.id : null;
+    pendingLatLng = latlng;
+
+    resetForm();
+
+    $('delete-btn').style.display = existing ? '' : 'none';
+    $('modal-title').textContent = existing ? "Editar obra" : "Nueva obra";
+
+    if(latlng){
+      $('modal-coords').textContent = `${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)}`;
+    }else{
+      $('modal-coords').textContent = "Sin coordenadas";
+    }
+
+    $('geo-status').textContent = "";
+    $('overlay').classList.add('show');
+
+    if(existing){
+      $('f-input-poblacion').value = existing.poblacion || "";
+      $('f-input-pct').value = existing.pct || "";
+      $('f-input-gescal26').value = existing.gescal26 || "";
+      $('f-input-direccion').value = existing.direccion || "";
+      $('f-input-tecnico').value = existing.tecnico || "";
+      $('f-input-estado').value = existing.estado || "PENDIENTE";
+      $('f-input-promotor').value = existing.promotor || "";
+      $('f-input-contacto').value = existing.contacto || "";
+      $('f-input-fecha-replanteo').value = existing.fechaReplanteo || "";
+      $('f-input-entrega-llaves').value = existing.entregaLlaves || "";
+      $('f-input-fecha-visita').value = existing.fechaVisita || "";
+      $('f-input-obs').value = existing.observaciones || "";
+    }else if(latlng){
+      $('geo-status').textContent = "Buscando dirección...";
+
+      const geo = await reverseGeocode(latlng.lat, latlng.lng);
+
+      if(geo && geo.direccion){
+        $('f-input-direccion').value = geo.direccion;
+        $('f-input-poblacion').value = geo.poblacion;
+        $('geo-status').textContent = "Dirección obtenida automáticamente — revísala antes de guardar.";
+      }else{
+        $('geo-status').textContent = "La búsqueda automática de dirección no está disponible aquí. Escríbela a mano (las coordenadas ya han quedado registradas).";
+      }
+    }
+  }
+
+  function closeModal(){
+    $('overlay').classList.remove('show');
+    editingId = null;
+    pendingLatLng = null;
+  }
+
+  $('cancel-btn').addEventListener('click', closeModal);
+
+  $('save-btn').addEventListener('click', async () => {
+    const direccion = $('f-input-direccion').value.trim();
+
+    if(!direccion){
+      alert("Introduce al menos la dirección.");
+      return;
+    }
+
+    const name = $('tech-name-input').value.trim();
+
+    if(name && name !== techName) saveTechName(name);
+
+    $('save-btn').disabled = true;
+
+    const now = new Date();
+
+    const obra = {
+      id: editingId || ('o' + Date.now() + Math.random().toString(36).slice(2,7)),
+      lat: pendingLatLng ? pendingLatLng.lat : null,
+      lon: pendingLatLng ? pendingLatLng.lng : null,
+      poblacion: $('f-input-poblacion').value.trim(),
+      direccion,
+      pct: $('f-input-pct').value ? Number($('f-input-pct').value) : null,
+      gescal26: $('f-input-gescal26').value.trim(),
+      tecnico: $('f-input-tecnico').value.trim(),
+      estado: $('f-input-estado').value,
+      promotor: $('f-input-promotor').value.trim(),
+      contacto: $('f-input-contacto').value.trim(),
+      fechaReplanteo: $('f-input-fecha-replanteo').value,
+      entregaLlaves: $('f-input-entrega-llaves').value.trim(),
+      fechaVisita: $('f-input-fecha-visita').value,
+      observaciones: $('f-input-obs').value.trim(),
+      creado: editingId
+        ? (obras.find(o=>o.id===editingId)?.creado || now.toISOString())
+        : now.toISOString()
+    };
+
+    const ok = await saveObra(obra);
+
+    $('save-btn').disabled = false;
+
+    if(ok){
+      const idx = obras.findIndex(o => o.id === obra.id);
+
+      if(idx >= 0) obras[idx] = obra;
+      else obras.unshift(obra);
+
+      renderAll();
+      closeModal();
+    }
+  });
+
+  $('delete-btn').addEventListener('click', async () => {
+    if(!editingId) return;
+
+    if(!confirm("¿Eliminar esta obra del mapa y del listado?")) return;
+
+    const ok = await deleteObraById(editingId);
+
+    if(ok){
+      obras = obras.filter(o => o.id !== editingId);
+      renderAll();
+      closeModal();
+    }
+  });
+
+  function renderMarkers(){
+    Object.values(markersById).forEach(m => map.removeLayer(m));
+
+    markersById = {};
+
+    obras.forEach(obra => {
+
+      // Si no tiene coordenadas, se guarda y aparece en la tabla,
+      // pero no se crea marcador en el mapa.
+      if(
+        !Number.isFinite(Number(obra.lat)) ||
+        !Number.isFinite(Number(obra.lon))
+      ) return;
+
+      const color = ESTADO_COLOR[obra.estado] || ESTADO_COLOR.PENDIENTE;
+
+      const marker = L.circleMarker([obra.lat, obra.lon], {
+        radius: 8,
+        color: '#fff',
+        weight: 2,
+        fillColor: color,
+        fillOpacity: 1
+      }).addTo(map);
+
+      const popupDiv = document.createElement('div');
+
+      popupDiv.innerHTML = `
+        <div class="popup-title">${escapeHtml(obra.direccion || 'Sin dirección')}</div>
+        <div class="popup-meta">${escapeHtml(obra.poblacion || '')} · ${escapeHtml(obra.tecnico || 'sin técnico')}</div>
+
+        <select class="popup-select" data-id="${obra.id}">
+          <option value="PENDIENTE" ${obra.estado==='PENDIENTE'?'selected':''}>Pendiente</option>
+          <option value="EN ESTUDIO" ${obra.estado==='EN ESTUDIO'?'selected':''}>En estudio</option>
+          <option value="TERMINADO" ${obra.estado==='TERMINADO'?'selected':''}>Terminado</option>
+          <option value="DESCARTADA" ${obra.estado==='DESCARTADA'?'selected':''}>Sin permiso</option>
+        </select>
+
+        <div class="popup-actions">
+          <button data-action="maps" data-id="${obra.id}">📍 Google Maps</button>
+          <button data-action="edit" data-id="${obra.id}">Editar</button>
+        </div>
+      `;
+
+      popupDiv.querySelector('select').addEventListener('change', async (ev) => {
+        const newEstado = ev.target.value;
+        const updated = {...obra, estado:newEstado};
+
+        const ok = await saveObra(updated);
+
+        if(ok){
+          const idx = obras.findIndex(o=>o.id===obra.id);
+          obras[idx] = updated;
+          renderAll();
+        }
+      });
+
+      popupDiv.querySelector('[data-action="maps"]').addEventListener('click', () => {
+        const mapsUrl =
+          `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(obra.lat + ',' + obra.lon)}`;
+
+        window.open(mapsUrl, '_blank');
+      });
+
+      popupDiv.querySelector('[data-action="edit"]').addEventListener('click', () => {
+        map.closePopup();
+        openModal(L.latLng(obra.lat, obra.lon), obra);
+      });
+
+      marker.bindPopup(popupDiv);
+
+      markersById[obra.id] = marker;
+    });
+  }
+
+  function escapeHtml(s){
+    return String(s||"").replace(
+      /[&<>"']/g,
+      c => ({
+        '&':'&amp;',
+        '<':'&lt;',
+        '>':'&gt;',
+        '"':'&quot;',
+        "'":'&#39;'
+      }[c])
+    );
+  }
+
+  function renderStats(){
+    const counts = {
+      PENDIENTE:0,
+      "EN ESTUDIO":0,
+      TERMINADO:0,
+      DESCARTADA:0
+    };
+
+    obras.forEach(o => {
+      if(counts[o.estado] !== undefined) counts[o.estado]++;
+    });
+
+    const bar = $('stats-bar');
+
+    bar.innerHTML = `
+      <div class="stat-chip">
+        <span class="dot" style="background:${ESTADO_COLOR.PENDIENTE}"></span>
+        Pendiente <b>${counts.PENDIENTE}</b>
+      </div>
+
+      <div class="stat-chip">
+        <span class="dot" style="background:${ESTADO_COLOR['EN ESTUDIO']}"></span>
+        En estudio <b>${counts['EN ESTUDIO']}</b>
+      </div>
+
+      <div class="stat-chip">
+        <span class="dot" style="background:${ESTADO_COLOR.TERMINADO}"></span>
+        Terminado <b>${counts.TERMINADO}</b>
+      </div>
+
+      <div class="stat-chip">
+        <span class="dot" style="background:${ESTADO_COLOR.DESCARTADA}"></span>
+        Sin permiso <b>${counts.DESCARTADA}</b>
+      </div>
+
+      <div class="stat-chip">
+        Total <b>${obras.length}</b>
+      </div>
+    `;
+  }
+
+  function populateFilterOptions(){
+    const poblaciones = [
+      ...new Set(obras.map(o=>o.poblacion).filter(Boolean))
+    ].sort();
+
+    const tecnicos = [
+      ...new Set(obras.map(o=>o.tecnico).filter(Boolean))
+    ].sort();
+
+    const selP = $('f-poblacion');
+    const selT = $('f-tecnico');
+
+    const curP = selP.value;
+    const curT = selT.value;
+
+    selP.innerHTML =
+      '<option value="">Población: todas</option>' +
+      poblaciones.map(p =>
+        `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`
+      ).join('');
+
+    selT.innerHTML =
+      '<option value="">Técnico: todos</option>' +
+      tecnicos.map(t =>
+        `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`
+      ).join('');
+
+    selP.value = curP;
+    selT.value = curT;
+  }
+
+  function getFiltered(){
+    const q = $('f-search').value.trim().toLowerCase();
+    const fp = $('f-poblacion').value;
+    const ft = $('f-tecnico').value;
+    const fe = $('f-estado').value;
+    const fd = $('f-fecha').value;
+
+    return obras.filter(o => {
+
+      if(fp && o.poblacion !== fp) return false;
+      if(ft && o.tecnico !== ft) return false;
+      if(fe && o.estado !== fe) return false;
+
+      if(fd){
+        const diaObra = o.creado ? o.creado.slice(0,10) : "";
+        if(diaObra !== fd) return false;
+      }
+
+      if(q){
+        const hay =
+          `${o.direccion||''} ${o.poblacion||''}`.toLowerCase();
+
+        if(!hay.includes(q)) return false;
+      }
+
+      return true;
+    });
+  }
+
+  function renderTable(){
+    const list = getFiltered();
+
+    $('count-line').textContent =
+      `${list.length} obra${list.length===1?'':'s'} mostradas de ${obras.length} en total`;
+
+    const wrap = $('table-wrap');
+
+    if(list.length === 0){
+      wrap.innerHTML =
+        `<div class="empty-state">Aún no hay obras marcadas. Toca el mapa para añadir la primera.</div>`;
+
+      return;
+    }
+
+    const rows = list.map(o => `
+      <tr data-id="${o.id}">
+        <td>${escapeHtml(o.poblacion||'—')}</td>
+        <td>${escapeHtml(o.direccion||'—')}</td>
+        <td>
+          <span class="badge" style="background:${ESTADO_COLOR[o.estado]}">
+            ${ESTADO_LABEL[o.estado]||o.estado}
+          </span>
+        </td>
+        <td>${escapeHtml(o.tecnico||'—')}</td>
+        <td class="mono">
+          ${o.creado ? new Date(o.creado).toLocaleDateString('es-ES') : '—'}
+        </td>
+        <td class="obs-cell">${escapeHtml(o.observaciones||'')}</td>
+        <td>
+          <div class="row-actions">
+            <button data-action="ver">Ver en mapa</button>
+            <button data-action="maps">Google Maps</button>
+            <button data-action="editar">Editar</button>
+          </div>
+        </td>
+      </tr>
+    `).join('');
+
+    wrap.innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>Población</th>
+            <th>Dirección</th>
+            <th>Estado</th>
+            <th>Técnico</th>
+            <th>Fecha</th>
+            <th>Observaciones</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+
+    wrap.querySelectorAll('button[data-action="ver"]').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{
+        const id = e.target.closest('tr').dataset.id;
+        const o = obras.find(x=>x.id===id);
+
+        if(
+          o &&
+          Number.isFinite(Number(o.lat)) &&
+          Number.isFinite(Number(o.lon))
+        ){
+          map.setView([o.lat,o.lon], 17);
+          markersById[id]?.openPopup();
+          window.scrollTo({top:0, behavior:'smooth'});
+        }else{
+          alert("Esta Prioritaria no tiene coordenadas.");
+        }
+      });
+    });
+
+    wrap.querySelectorAll('button[data-action="maps"]').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{
+        const id = e.target.closest('tr').dataset.id;
+        const o = obras.find(x=>x.id===id);
+
+        if(
+          o &&
+          Number.isFinite(Number(o.lat)) &&
+          Number.isFinite(Number(o.lon))
+        ){
+          const mapsUrl =
+            `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(o.lat + ',' + o.lon)}`;
+
+          window.open(mapsUrl, '_blank');
+        }else{
+          alert("Esta Prioritaria no tiene coordenadas.");
+        }
+      });
+    });
+
+    wrap.querySelectorAll('button[data-action="editar"]').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{
+        const id = e.target.closest('tr').dataset.id;
+        const o = obras.find(x=>x.id===id);
+
+        if(o){
+          openModal(
+            Number.isFinite(Number(o.lat)) &&
+            Number.isFinite(Number(o.lon))
+              ? L.latLng(o.lat,o.lon)
+              : null,
+            o
+          );
+        }
+      });
+    });
+  }
+
+  function renderAll(){
+    renderStats();
+    populateFilterOptions();
+    renderMarkers();
+    renderTable();
+  }
+
+  ['f-search','f-poblacion','f-tecnico','f-estado','f-fecha'].forEach(id=>{
+    $(id).addEventListener('input', renderTable);
+    $(id).addEventListener('change', renderTable);
+  });
+
+  $('f-fecha-clear').addEventListener('click', () => {
+    $('f-fecha').value = "";
+    renderTable();
+  });
+
+  // ---------- IMPORT ----------
+
+  function excelDateToISO(value){
+    if(value == null || value === "") return "";
+
+    if(value instanceof Date && !isNaN(value.getTime())){
+      return value.toISOString().slice(0,10);
+    }
+
+    if(typeof value === "number"){
+      const utc =
+        new Date(Date.UTC(1899, 11, 30) + value * 86400000);
+
+      return isNaN(utc.getTime())
+        ? ""
+        : utc.toISOString().slice(0,10);
+    }
+
+    const text = String(value).trim();
+
+    let m =
+      text.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+
+    if(m){
+      const d = m[1].padStart(2,'0');
+      const mo = m[2].padStart(2,'0');
+      const y = m[3];
+
+      return `${y}-${mo}-${d}`;
+    }
+
+    m =
+      text.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+
+    if(m){
+      return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+    }
+
+    return "";
+  }
+
+  function parseCoords(value){
+    if(value == null) return null;
+
+    const text =
+      String(value).trim().replace(/;/g, ',');
+
+    const m =
+      text.match(/(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/);
+
+    if(!m) return null;
+
+    const lat = Number(m[1]);
+    const lon = Number(m[2]);
+
+    if(
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lon) ||
+      Math.abs(lat) > 90 ||
+      Math.abs(lon) > 180
+    ){
+      return null;
+    }
+
+    return {lat, lon};
+  }
+
+  function normalizeEstado(value){
+    const v =
+      String(value == null ? "" : value)
+        .trim()
+        .toUpperCase();
+
+    if(v === "SIN PERMISO" || v === "DESCARTADA")
+      return "DESCARTADA";
+
+    if(
+      v === "TERMINADO" ||
+      v === "TERMINADA" ||
+      v === "COBERTURA"
+    )
+      return "TERMINADO";
+
+    if(v === "EN ESTUDIO")
+      return "EN ESTUDIO";
+
+    return "PENDIENTE";
+  }
+
+  function normalizePct(value){
+    if(value == null || value === "") return null;
+
+    if(typeof value === "number")
+      return value <= 1 ? value * 100 : value;
+
+    const n =
+      parseFloat(
+        String(value)
+          .replace('%','')
+          .replace(',','.')
+          .trim()
+      );
+
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function normalizeHeader(value){
+    return String(value == null ? "" : value)
+      .trim()
+      .toUpperCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g,"");
+  }
+
+  async function importFromExcel(file){
+    const data = await file.arrayBuffer();
+
+    const wb = XLSX.read(data, {
+      type:"array",
+      cellDates:true
+    });
+
+    const sheetName =
+      wb.SheetNames.includes("OBRAS DETECTADAS")
+        ? "OBRAS DETECTADAS"
+        : wb.SheetNames[0];
+
+    const ws = wb.Sheets[sheetName];
+
+    const rawRows =
+      XLSX.utils.sheet_to_json(ws, {defval:""});
+
+    if(!rawRows.length)
+      throw new Error("El archivo no contiene filas de datos.");
+
+    const rows = rawRows.map((row, index) => {
+      const normalized = {
+        __filaExcel: index + 2
+      };
+
+      Object.keys(row).forEach(k =>
+        normalized[normalizeHeader(k)] = row[k]
+      );
+
+      return normalized;
+    });
+
+    let imported = 0;
+    let updated = 0;
+    let skipped = 0;
+
+    const errors = [];
+    const refused = [];
+
+    for(const row of rows){
+
+      const fila = row.__filaExcel;
+
+      const gescal26 =
+        String(row["GESCAL26"] || "").trim();
+
+      const direccion =
+        String(row["DIRECCION"] || "").trim();
+
+      const poblacion =
+        String(row["POBLACION"] || "").trim();
+
+      const identificador =
+        gescal26 || direccion || `fila ${fila}`;
+
+      try{
+
+        const coords =
+          parseCoords(row["LINK DE GOOGLE"]);
+
+        /*
+         * LAS COORDENADAS SON OPCIONALES.
+         *
+         * Si existe dirección pero no existe LINK DE GOOGLE,
+         * la Prioritaria se importa igualmente.
+         *
+         * Se guardan lat/lon como null.
+         * No aparecerá marcador en el mapa.
+         *
+         * Solo se descarta si NO hay ni dirección
+         * ni coordenadas válidas.
+         */
+
+        if(!direccion && !coords){
+          skipped++;
+
+          errors.push(
+            `Fila ${fila} (${identificador}): no tiene dirección ni coordenadas válidas.`
+          );
+
+          continue;
+        }
+
+        const normalizarTexto = (valor) =>
+          String(valor || "")
+            .trim()
+            .toLowerCase()
+            .replace(/\s+/g, " ");
+
+        const gescalNormalizado =
+          normalizarTexto(gescal26);
+
+        const direccionNormalizada =
+          normalizarTexto(direccion);
+
+        /*
+         * Comprobación de duplicados:
+         * - mismo GESCAL26
+         * - o misma dirección
+         */
+
+        const existing = obras.find(o => {
+
+          const mismoGescal =
+            gescalNormalizado &&
+            normalizarTexto(o.gescal26) === gescalNormalizado;
+
+          const mismaDireccion =
+            direccionNormalizada &&
+            normalizarTexto(o.direccion) === direccionNormalizada;
+
+          return mismoGescal || mismaDireccion;
+        });
+
+        if(existing){
+
+          const coincideGescal =
+            gescalNormalizado &&
+            normalizarTexto(existing.gescal26) === gescalNormalizado;
+
+          const coincideDireccion =
+            direccionNormalizada &&
+            normalizarTexto(existing.direccion) === direccionNormalizada;
+
+          const motivo =
+            coincideGescal && coincideDireccion
+              ? `GESCAL26 ${gescal26} y dirección "${direccion}"`
+              : coincideGescal
+                ? `GESCAL26 ${gescal26}`
+                : `dirección "${direccion}"`;
+
+          const wantsImport = confirm(
+            `Esta Prioritaria ya existe en la aplicación.\n\n` +
+            `Coincidencia encontrada por: ${motivo}\n\n` +
+
+            `Existente:\n` +
+            `${existing.direccion || "Sin dirección"}` +
+            `${existing.gescal26 ? `\nGESCAL26: ${existing.gescal26}` : ""}\n\n` +
+
+            `Prioritaria del Excel:\n` +
+            `${direccion}` +
+            `${poblacion ? ` (${poblacion})` : ""}` +
+            `${gescal26 ? `\nGESCAL26: ${gescal26}` : ""}\n\n` +
+
+            `¿Quieres COPIAR esta Prioritaria como una nueva o DESCARTARla?\n\n` +
+            `Aceptar = COPIAR\n` +
+            `Cancelar = DESCARTAR`
+          );
+
+          if(!wantsImport){
+            refused.push(
+              `Fila ${fila} — ${gescal26 || direccion}`
+            );
+
+            continue;
+          }
+        }
+
+        const now = new Date();
+
+        const obra = {
+
+          /*
+           * Siempre se crea un ID NUEVO.
+           * Incluso cuando existe duplicado y se pulsa COPIAR.
+           */
+          id:
+            ('o' +
+            Date.now() +
+            Math.random().toString(36).slice(2,8)),
+
+          /*
+           * Si no hay coordenadas:
+           * lat = null
+           * lon = null
+           */
+          lat: coords ? coords.lat : null,
+          lon: coords ? coords.lon : null,
+
+          poblacion,
+
+          direccion,
+
+          pct:
+            normalizePct(row["% CONSTRUCCION"]),
+
+          gescal26,
+
+          tecnico:
+            String(row["TECNICO/S"] || "").trim(),
+
+          estado:
+            normalizeEstado(row["ESTADO"]),
+
+          promotor:
+            String(row["PROMOTOR"] || "").trim(),
+
+          contacto:
+            String(row["CONTACTO"] || "").trim(),
+
+          fechaReplanteo:
+            excelDateToISO(
+              row["FECHA PROXIMO REPLANTEO"]
+            ),
+
+          entregaLlaves:
+            String(
+              row["ENTREGA DE LLAVES"] || ""
+            ).trim(),
+
+          fechaVisita:
+            excelDateToISO(
+              row["FECHA DE ULTIMA VISITA"]
+            ),
+
+          observaciones:
+            String(
+              row["OBSERVACIONES"] || ""
+            ).trim(),
+
+          creado:
+            now.toISOString()
+        };
+
+        const ok =
+          await saveObra(obra);
+
+        if(!ok)
+          throw new Error(
+            "Firestore no ha podido guardar la obra."
+          );
+
+        /*
+         * El duplicado se COPIA como documento nuevo.
+         * No se modifica el documento existente.
+         */
+        if(existing)
+          updated++;
+        else
+          imported++;
+
+        const idx =
+          obras.findIndex(
+            o => o.id === obra.id
+          );
+
+        if(idx >= 0)
+          obras[idx] = obra;
+        else
+          obras.unshift(obra);
+
+      }catch(err){
+
+        console.error(
+          `Error en fila ${fila}`,
+          err
+        );
+
+        errors.push(
+          `Fila ${fila} (${identificador}): ${err.message || "error desconocido"}`
+        );
+      }
+    }
+
+    renderAll();
+
+    let resumen =
+      `Importación terminada.\n\n` +
+
+      `✅ Nuevas importadas: ${imported}\n` +
+
+      `🔄 Existentes actualizadas: ${updated}\n` +
+
+      `⏭️ No importadas porque se rechazó la actualización: ${refused.length}\n` +
+
+      `❌ Con error/omitidas: ${errors.length}`;
+
+    if(refused.length){
+      resumen +=
+        `\n\n⏭️ NO IMPORTADAS:\n- ` +
+        refused.join("\n- ");
+    }
+
+    if(errors.length){
+      resumen +=
+        `\n\n❌ ERRORES:\n- ` +
+        errors.join("\n- ");
+    }
+
+    alert(resumen);
+  }
+
+  $('import-btn').addEventListener(
+    'click',
+    () => $('import-file').click()
+  );
+
+  $('import-file').addEventListener(
+    'change',
+    async (e) => {
+
+      const file =
+        e.target.files?.[0];
+
+      e.target.value = "";
+
+      if(!file) return;
+
+      const btn =
+        $('import-btn');
+
+      const original =
+        btn.textContent;
+
+      btn.disabled = true;
+      btn.textContent = "Importando...";
+
+      try{
+
+        await importFromExcel(file);
+
+      }catch(err){
+
+        console.error(
+          "Error importando Excel",
+          err
+        );
+
+        alert(
+          "No se pudo importar el Excel.\n\n" +
+          (err.message ||
+           "Comprueba que tenga el formato esperado.")
+        );
+
+      }finally{
+
+        btn.disabled = false;
+        btn.textContent = original;
+      }
+    }
+  );
+
+  $('tech-name-input').addEventListener(
+    'change',
+    (e) => saveTechName(
+      e.target.value.trim()
+    )
+  );
+
+  let userLocationMarker = null;
+
+  $('locate-btn').addEventListener(
+    'click',
+    () => {
+
+      if(!navigator.geolocation){
+
+        alert(
+          "Este entorno no permite acceder a la ubicación del navegador. " +
+          "Marca el punto directamente tocando el mapa donde estés."
+        );
+
+        return;
+      }
+
+      const btn =
+        $('locate-btn');
+
+      btn.classList.add('locating');
+
+      const timeout =
+        setTimeout(() => {
+
+          btn.classList.remove('locating');
+
+          alert(
+            "No se ha podido obtener tu ubicación en este entorno " +
+            "(puede estar bloqueada por permisos). " +
+            "Marca el punto directamente tocando el mapa donde estés."
+          );
+
+        }, 6000);
+
+      try{
+
+        navigator.geolocation.getCurrentPosition(
+
+          (pos) => {
+
+            clearTimeout(timeout);
+
+            btn.classList.remove('locating');
+
+            const {
+              latitude,
+              longitude
+            } = pos.coords;
+
+            map.setView(
+              [latitude, longitude],
+              16
+            );
+
+            if(userLocationMarker)
+              map.removeLayer(
+                userLocationMarker
+              );
+
+            userLocationMarker =
+              L.circleMarker(
+                [latitude, longitude],
+                {
+                  radius: 9,
+                  color:'#fff',
+                  weight:3,
+                  fillColor:'#2e6fa8',
+                  fillOpacity:1
+                }
+              )
+              .addTo(map)
+              .bindPopup(
+                "Tu ubicación actual"
+              )
+              .openPopup();
+          },
+
+          (err) => {
+
+            clearTimeout(timeout);
+
+            btn.classList.remove('locating');
+
+            let msg =
+              "No se pudo obtener tu ubicación. " +
+              "Marca el punto directamente tocando el mapa donde estés.";
+
+            if(
+              err.code ===
+              err.PERMISSION_DENIED
+            ){
+              msg =
+                "Este entorno ha bloqueado el permiso de ubicación. " +
+                "Marca el punto directamente tocando el mapa donde estés.";
+            }
+
+            alert(msg);
+          },
+
+          {
+            enableHighAccuracy:true,
+            timeout:5500
+          }
+        );
+
+      }catch(e){
+
+        clearTimeout(timeout);
+
+        btn.classList.remove('locating');
+
+        alert(
+          "La ubicación no está disponible en este entorno. " +
+          "Marca el punto directamente tocando el mapa donde estés."
+        );
+      }
+    }
+  );
+
+  const MESES_ES = [
+    'ENERO',
+    'FEBRERO',
+    'MARZO',
+    'ABRIL',
+    'MAYO',
+    'JUNIO',
+    'JULIO',
+    'AGOSTO',
+    'SEPTIEMBRE',
+    'OCTUBRE',
+    'NOVIEMBRE',
+    'DICIEMBRE'
+  ];
+
+  function formatFechaISO(iso){
+    if(!iso) return "";
+
+    const [y,m,d] =
+      iso.split('-');
+
+    return `${d}/${m}/${y}`;
+  }
+
+  function mesDeFecha(iso){
+    if(!iso) return "";
+
+    const m =
+      Number(iso.split('-')[1]);
+
+    return MESES_ES[m-1] || "";
+  }
+
+  // ---------- EXPORT ----------
+
+  function buildRows(){
+
+    const filtered =
+      getFiltered();
+
+    const list =
+      filtered.length
+        ? filtered
+        : obras;
+
+    return list.map(o => ({
+
+      "POBLACION":
+        o.poblacion || "",
+
+      "GESCAL26":
+        o.gescal26 || "",
+
+      "DIRECCION":
+        o.direccion || "",
+
+      "% CONSTRUCCION":
+        o.pct != null
+          ? `${o.pct}%`
+          : "",
+
+      "MES FECHA PROXIMO REPLANTEO":
+        mesDeFecha(
+          o.fechaReplanteo
+        ),
+
+      "FECHA PROXIMO REPLANTEO":
+        formatFechaISO(
+          o.fechaReplanteo
+        ),
+
+      "ENTREGA DE LLAVES":
+        o.entregaLlaves || "",
+
+      "PROMOTOR":
+        o.promotor || "",
+
+      /*
+       * Si no hay coordenadas,
+       * el Excel queda con LINK DE GOOGLE vacío.
+       */
+      "LINK DE GOOGLE":
+        (
+          Number.isFinite(Number(o.lat)) &&
+          Number.isFinite(Number(o.lon))
+        )
+          ? `${o.lat}, ${o.lon}`
+          : "",
+
+      "CONTACTO":
+        o.contacto || "",
+
+      "OBSERVACIONES":
+        o.observaciones || "",
+
+      "ESTADO":
+        o.estado === "DESCARTADA"
+          ? "SIN PERMISO"
+          : (o.estado || ""),
+
+      "FECHA DE ULTIMA VISITA":
+        o.fechaVisita
+          ? formatFechaISO(o.fechaVisita)
+          : (
+              o.creado
+                ? new Date(o.creado)
+                    .toLocaleDateString('es-ES')
+                : ""
+            ),
+
+      "TECNICO/S":
+        o.tecnico || ""
+    }));
+  }
+
+  $('export-btn').addEventListener(
+    'click',
+    () => {
+
+      const rows =
+        buildRows();
+
+      const ws =
+        XLSX.utils.json_to_sheet(rows);
+
+      ws['!cols'] = [
+        {wch:16},
+        {wch:14},
+        {wch:34},
+        {wch:12},
+        {wch:14},
+        {wch:14},
+        {wch:14},
+        {wch:18},
+        {wch:26},
+        {wch:14},
+        {wch:34},
+        {wch:14},
+        {wch:16},
+        {wch:16}
+      ];
+
+      const wb =
+        XLSX.utils.book_new();
+
+      XLSX.utils.book_append_sheet(
+        wb,
+        ws,
+        "OBRAS DETECTADAS"
+      );
+
+      const stamp =
+        new Date()
+          .toISOString()
+          .slice(0,10);
+
+      const quien =
+        (
+          techName ||
+          $('tech-name-input').value.trim() ||
+          'sin nombre'
+        )
+        .replace(
+          /[\\/:*?"<>|]/g,
+          ''
+        )
+        .trim();
+
+      XLSX.writeFile(
+        wb,
+        `Control de Prioritarias ${stamp} ${quien}.xlsx`
+      );
+    }
+  );
+
+  // ---------- INIT ----------
+
+  (function init(){
+
+    loadTechName();
+
+    renderAll();
+
+    startRealtimeSync();
+
+  })();
+
+})();
+</script>
+</body>
+</html>
