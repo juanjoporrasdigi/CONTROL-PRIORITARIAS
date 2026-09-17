@@ -1259,6 +1259,14 @@
   // ---------- GESTIÓN DE USUARIOS (Edge Function segura) ----------
   async function callAdminUsers(body){
     if(!canManageUsers()) throw new Error('Solo el Superadmin puede gestionar usuarios.');
+
+    // PROTECCIÓN EXTRA: la cuenta actualmente conectada nunca puede
+    // activarse/desactivarse ni eliminarse desde esta interfaz.
+    const accionesBloqueadas = ['activate','deactivate','delete'];
+    if(accionesBloqueadas.includes(body?.action) && body?.id === currentUser?.id){
+      throw new Error('Tu propia cuenta de Superadmin está protegida y no se puede activar, desactivar ni eliminar.');
+    }
+
     const {data,error}=await supabaseClient.functions.invoke('admin-users',{body});
     if(error) throw error;
     if(data?.error) throw new Error(data.error);
