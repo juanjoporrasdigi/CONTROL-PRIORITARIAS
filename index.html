@@ -198,6 +198,14 @@
     padding:14px 20px;border-top:1px solid var(--line);
     display:flex;justify-content:flex-end;gap:10px;
   }
+  /* ---------- AVISO PERSONALIZADO ---------- */
+  #notice-overlay{z-index:2000;}
+  #notice-overlay .modal{max-width:420px;}
+  #notice-overlay .modal-head{padding:16px 20px 12px;}
+  #notice-overlay .modal-head h2{font-size:16px;}
+  #notice-overlay .modal-body{font-size:13.5px;line-height:1.5;}
+  #notice-message{white-space:pre-line;}
+
   .btn-secondary{background:#fff;border:1px solid var(--line);padding:9px 16px;border-radius:3px;cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-soft);}
   .btn-primary{background:var(--orange);border:none;color:#fff;padding:9px 18px;border-radius:3px;cursor:pointer;font-size:13px;font-weight:700;}
   .btn-primary:disabled{opacity:.5;cursor:default;}
@@ -353,6 +361,22 @@
       <div id="users-list-wrap"></div>
     </div>
     <div class="modal-actions"><button class="btn-secondary" id="users-close-btn">Cerrar</button><button class="btn-primary" id="create-user-btn">Crear usuario</button></div>
+  </div>
+</div>
+
+
+<!-- MODAL: aviso de validación -->
+<div class="overlay" id="notice-overlay">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>Aviso</h2>
+    </div>
+    <div class="modal-body">
+      <div id="notice-message"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-primary" id="notice-ok-btn">Aceptar</button>
+    </div>
   </div>
 </div>
 
@@ -721,6 +745,21 @@
 
   $('cancel-btn').addEventListener('click', closeModal);
 
+
+  function showNotice(message){
+    $('notice-message').textContent = message;
+    $('notice-overlay').classList.add('show');
+  }
+
+  function closeNotice(){
+    $('notice-overlay').classList.remove('show');
+  }
+
+  $('notice-ok-btn').addEventListener('click', closeNotice);
+  $('notice-overlay').addEventListener('click', (e) => {
+    if(e.target === $('notice-overlay')) closeNotice();
+  });
+
   $('save-btn').addEventListener('click', async () => {
     const direccion = $('f-input-direccion').value.trim();
     if(!direccion){ alert("Introduce al menos la dirección."); return; }
@@ -733,7 +772,7 @@
     if(!fechaReplanteo) fallosFecha.push("• Fecha próximo replanteo");
     if(!fechaVisita) fallosFecha.push("• Fecha de última visita");
     if(fallosFecha.length){
-      alert("Es obligatorio completar las siguientes fechas antes de guardar:\n\n" + fallosFecha.join("\n"));
+      showNotice("Es obligatorio completar las siguientes fechas antes de guardar:\n\n" + fallosFecha.join("\n"));
       return;
     }
 
