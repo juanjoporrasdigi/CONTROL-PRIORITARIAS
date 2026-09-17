@@ -247,6 +247,7 @@
   .user-row-actions{display:flex;gap:5px;flex-wrap:wrap;}
   .user-row-actions button{border:1px solid var(--line);background:#fff;border-radius:3px;padding:4px 7px;font-size:10.5px;cursor:pointer;}
   .user-row-actions button.danger{color:#b33;border-color:#e1aaaa;}
+  .current-user-label{font-size:10.5px;color:var(--green);font-family:'IBM Plex Mono',monospace;font-weight:600;padding:4px 0;}
   .required-note{font-size:11px;color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;}
 </style>
 </head>
@@ -338,7 +339,7 @@
 <!-- MODAL: gestión de usuarios (solo Superadmin) -->
 <div class="overlay" id="users-overlay">
   <div class="modal users-modal">
-    <div class="modal-head"><h2>Gestión de usuarios</h2><p>Solo el Superadmin puede crear, modificar, activar, desactivar o eliminar usuarios.</p></div>
+    <div class="modal-head"><h2>Gestión de usuarios</h2><p>Solo el Superadmin puede crear, modificar, activar, desactivar o eliminar usuarios. La cuenta del Superadmin conectado está protegida y no se puede desactivar ni eliminar.</p></div>
     <div class="modal-body">
       <div class="field-row">
         <div class="field"><label>Nombre</label><input id="new-user-name" type="text"></div>
@@ -571,17 +572,23 @@
 
   async function activateAuthenticatedUser(user){
     currentUser=user;
-    currentProfile=await loadUserProfile(user);
-    techName=currentProfile.nombre||'';
-    $('session-user-pill').textContent=`${currentProfile.nombre || currentProfile.email} · ${currentProfile.rol}`;
-    $('user-admin-btn').style.display='inline-block';
-    $('auth-screen').style.display='none';
-    $('app').style.display='flex';
-    setTimeout(()=>map.invalidateSize(true),300);
-    await startSupabaseSync();
-    startRealtimeSync();
-    forcePasswordChange=!!currentProfile.debeCambiarPassword;
-    if(forcePasswordChange) openPasswordModal(true);
+    try{
+      currentProfile=await loadUserProfile(user);
+      techName=currentProfile.nombre||'';
+      $('session-user-pill').textContent=`${currentProfile.nombre || currentProfile.email} · ${currentProfile.rol}`;
+      $('user-admin-btn').style.display=canManageUsers() ? 'inline-block' : 'none';
+      $('auth-screen').style.display='none';
+      $('app').style.display='flex';
+      setTimeout(()=>map.invalidateSize(true),300);
+      await startSupabaseSync();
+      startRealtimeSync();
+      forcePasswordChange=!!currentProfile.debeCambiarPassword;
+      if(forcePasswordChange) openPasswordModal(true);
+    }catch(e){
+      currentUser=null;
+      currentProfile=null;
+      throw e;
+    }
   }
 
   async function logout(){
@@ -1253,6 +1260,9 @@
   // ---------- GESTIÓN DE USUARIOS (Edge Function segura) ----------
   async function callAdminUsers(body){
     if(!canManageUsers()) throw new Error('Solo el Superadmin puede gestionar usuarios.');
+    if(['activate','deactivate','delete'].includes(body?.action) && body?.id === currentUser?.id){
+      throw new Error('Tu propia cuenta de Superadmin está protegida y no se puede activar, desactivar ni eliminar.');
+    }
     const {data,error}=await supabaseClient.functions.invoke('admin-users',{body});
     if(error) throw error;
     if(data?.error) throw new Error(data.error);
@@ -1267,9 +1277,10 @@
       if(!users.length){wrap.innerHTML='<div class="empty-state">No hay usuarios.</div>';return;}
       wrap.innerHTML=`<table class="users-table"><thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${users.map(u=>`
         <tr data-user-id="${escapeHtml(u.id)}"><td>${escapeHtml(u.nombre||'—')}</td><td>${escapeHtml(u.email||'—')}</td><td><span class="role-badge">${escapeHtml(u.rol||'—')}</span></td><td><span class="active-badge ${u.activo?'yes':'no'}">${u.activo?'Activo':'Inactivo'}</span></td><td><div class="user-row-actions">
-        <button data-user-action="toggle">${u.activo?'Desactivar':'Activar'}</button>
-        <button data-user-action="edit">Modificar</button>
-        <button data-user-action="delete" class="danger">Eliminar</button>
+        ${u.id === currentUser?.id
+          ? `<span class="current-user-label">Cuenta actual</span><button data-user-action="edit">Modificar</button>`
+          : `<button data-user-action="toggle">${u.activo?'Desactivar':'Activar'}</button><button data-user-action="edit">Modificar</button><button data-user-action="delete" class="danger">Eliminar</button>`
+        }
         </div></td></tr>`).join('')}</tbody></table>`;
       wrap.querySelectorAll('[data-user-action]').forEach(btn=>btn.addEventListener('click',()=>handleUserAction(btn,users)));
     }catch(e){console.error(e);wrap.innerHTML='<div class="auth-error" style="display:block">'+escapeHtml(e.message||'Error cargando usuarios.')+'</div>';}
@@ -1278,6 +1289,10 @@
   async function handleUserAction(btn,users){
     const tr=btn.closest('tr'),id=tr.dataset.userId,u=users.find(x=>x.id===id);if(!u)return;
     const action=btn.dataset.userAction;
+    if((action==='toggle' || action==='delete') && id === currentUser?.id){
+      alert('No puedes activar, desactivar ni eliminar tu propia cuenta.');
+      return;
+    }
     try{
       if(action==='toggle'){await callAdminUsers({action:u.activo?'deactivate':'activate',id});}
       else if(action==='delete'){if(!confirm(`¿Eliminar definitivamente a ${u.nombre||u.email}?`))return;await callAdminUsers({action:'delete',id});}
