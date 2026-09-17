@@ -616,8 +616,6 @@
     if(!canCreateEditObras()){ alert('Tu perfil no tiene permiso para crear o editar obras.'); return false; }
     try{
       const payload={...obra};
-      // Los campos de fecha son opcionales. PostgreSQL/Supabase no acepta ""
-      // en columnas de tipo date, por lo que una fecha vacía debe enviarse como null.
       payload.fechaReplanteo = payload.fechaReplanteo || null;
       payload.entregaLlaves = payload.entregaLlaves || null;
       payload.fechaVisita = payload.fechaVisita || null;
