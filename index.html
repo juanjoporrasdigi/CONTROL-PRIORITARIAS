@@ -725,6 +725,18 @@
     const direccion = $('f-input-direccion').value.trim();
     if(!direccion){ alert("Introduce al menos la dirección."); return; }
 
+    // Las dos fechas son obligatorias al crear o editar manualmente.
+    // La importación de Excel no pasa por esta validación y puede dejar fechas vacías.
+    const fechaReplanteo = $('f-input-fecha-replanteo').value;
+    const fechaVisita = $('f-input-fecha-visita').value;
+    const fallosFecha = [];
+    if(!fechaReplanteo) fallosFecha.push("• Fecha próximo replanteo");
+    if(!fechaVisita) fallosFecha.push("• Fecha de última visita");
+    if(fallosFecha.length){
+      alert("FALLO EN FECHA\n\nEs obligatorio completar las siguientes fechas antes de guardar:\n\n" + fallosFecha.join("\n"));
+      return;
+    }
+
     $('save-btn').disabled = true;
     const now = new Date();
     const existingObra = editingId ? obras.find(o => o.id === editingId) : null;
@@ -740,9 +752,9 @@
       estado: $('f-input-estado').value,
       promotor: $('f-input-promotor').value.trim(),
       contacto: $('f-input-contacto').value.trim(),
-      fechaReplanteo: $('f-input-fecha-replanteo').value,
+      fechaReplanteo,
       entregaLlaves: $('f-input-entrega-llaves').value.trim(),
-      fechaVisita: $('f-input-fecha-visita').value,
+      fechaVisita,
       observaciones: $('f-input-obs').value.trim(),
       creado: editingId ? (obras.find(o=>o.id===editingId)?.creado || now.toISOString()) : now.toISOString(),
       creadoPorUid: currentUser?.id || null,
@@ -1213,7 +1225,7 @@
       "CONTACTO": o.contacto || "",
       "OBSERVACIONES": o.observaciones || "",
       "ESTADO": o.estado === "DESCARTADA" ? "SIN PERMISO" : (o.estado || ""),
-      "FECHA DE ULTIMA VISITA": o.fechaVisita ? formatFechaISO(o.fechaVisita) : (o.creado ? new Date(o.creado).toLocaleDateString('es-ES') : ""),
+      "FECHA DE ULTIMA VISITA": o.fechaVisita ? formatFechaISO(o.fechaVisita) : "",
       "TECNICO/S": o.tecnico || ""
     }));
   }
