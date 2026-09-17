@@ -683,7 +683,7 @@
     resetForm();
     $('delete-btn').style.display = (existing && canDeleteObras()) ? '' : 'none';
     $('modal-title').textContent = existing ? "Editar obra" : "Nueva obra";
-    $('modal-coords').textContent = `${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)}`;
+    $('modal-coords').textContent = latlng ? `${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)}` : 'Sin coordenadas';
     $('geo-status').textContent = "";
     $('overlay').classList.add('show');
 
@@ -727,10 +727,11 @@
 
     $('save-btn').disabled = true;
     const now = new Date();
+    const existingObra = editingId ? obras.find(o => o.id === editingId) : null;
     const obra = {
       id: editingId || ('o' + Date.now() + Math.random().toString(36).slice(2,7)),
-      lat: pendingLatLng.lat,
-      lon: pendingLatLng.lng,
+      lat: pendingLatLng ? pendingLatLng.lat : (existingObra?.lat ?? null),
+      lon: pendingLatLng ? pendingLatLng.lng : (existingObra?.lon ?? null),
       poblacion: $('f-input-poblacion').value.trim(),
       direccion,
       pct: $('f-input-pct').value ? Number($('f-input-pct').value) : null,
@@ -854,13 +855,13 @@
     const fp = $('f-poblacion').value;
     const ft = $('f-tecnico').value;
     const fe = $('f-estado').value;
-    const fd = $('f-fecha').value; // yyyy-mm-dd, filtra por día de creación
+    const fd = $('f-fecha').value; // yyyy-mm-dd, filtra por fecha de última visita
     return obras.filter(o => {
       if(fp && o.poblacion !== fp) return false;
       if(ft && o.tecnico !== ft) return false;
       if(fe && o.estado !== fe) return false;
       if(fd){
-        const diaObra = o.creado ? o.creado.slice(0,10) : "";
+        const diaObra = o.fechaVisita || "";
         if(diaObra !== fd) return false;
       }
       if(q){
@@ -1015,6 +1016,7 @@
 
     let imported = 0;
     let updated = 0;
+    let copied = 0;
     let skipped = 0;
     const errors = [];
     const refused = [];
@@ -1092,7 +1094,7 @@
         const ok = await saveObra(obra);
         if(!ok) throw new Error("Supabase no ha podido guardar la obra.");
 
-        if(existing) updated++; else imported++;
+        if(existing) copied++; else imported++;
 
         const idx = obras.findIndex(o => o.id === obra.id);
         if(idx >= 0) obras[idx] = obra; else obras.unshift(obra);
@@ -1106,7 +1108,7 @@
 
     let resumen = `Importación terminada.\n\n` +
       `✅ Nuevas importadas: ${imported}\n` +
-      `🔄 Existentes actualizadas: ${updated}\n` +
+      `📋 Copias de existentes: ${copied}\n` +
       `⏭️ No importadas porque se rechazó la actualización: ${refused.length}\n` +
       `❌ Con error/omitidas: ${errors.length}`;
 
