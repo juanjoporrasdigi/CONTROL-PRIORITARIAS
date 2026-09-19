@@ -87,10 +87,10 @@
   #map{height:52vh;min-height:340px;width:100%;}
   .map-search{
     position:absolute;top:10px;left:10px;z-index:500;
-    display:flex;gap:6px;width:300px;
+    display:flex;gap:6px;width:clamp(300px,42vw,560px);
   }
   .map-search input{
-    width:210px;flex:none;padding:8px 10px;border:1px solid var(--line);border-radius:3px;
+    width:auto;flex:1;min-width:0;padding:8px 10px;border:1px solid var(--line);border-radius:3px;
     font-family:'Archivo',sans-serif;font-size:13px;
     box-shadow:0 1px 3px rgba(0,0,0,.15);
   }
@@ -198,14 +198,6 @@
     padding:14px 20px;border-top:1px solid var(--line);
     display:flex;justify-content:flex-end;gap:10px;
   }
-  /* ---------- AVISO PERSONALIZADO ---------- */
-  #notice-overlay{z-index:2000;}
-  #notice-overlay .modal{max-width:420px;}
-  #notice-overlay .modal-head{padding:16px 20px 12px;}
-  #notice-overlay .modal-head h2{font-size:16px;}
-  #notice-overlay .modal-body{font-size:13.5px;line-height:1.5;}
-  #notice-message{white-space:pre-line;}
-
   .btn-secondary{background:#fff;border:1px solid var(--line);padding:9px 16px;border-radius:3px;cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-soft);}
   .btn-primary{background:var(--orange);border:none;color:#fff;padding:9px 18px;border-radius:3px;cursor:pointer;font-size:13px;font-weight:700;}
   .btn-primary:disabled{opacity:.5;cursor:default;}
@@ -219,14 +211,53 @@
   .popup-actions button{flex:1;border:1px solid var(--line);background:#fff;border-radius:3px;padding:5px;font-size:11.5px;cursor:pointer;}
 
   @media(max-width:640px){
-    #map{height:44vh;}
-    .field-row{flex-direction:column;}
+    header{padding:16px 16px 14px;}
+    .head-row{gap:12px;}
+    h1{font-size:19px;}
+    .subtitle{font-size:11.5px;line-height:1.45;}
+
+    /* Cuenta: nombre arriba y acciones debajo, sin amontonarlas */
+    .session-bar{width:100%;margin-left:0;display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:7px;}
+    .user-pill{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:8px 9px;}
+    .btn-header{padding:8px 9px;}
+
+    /* Estados: 2 columnas + total a la izquierda */
+    .stats-bar{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:12px;}
+    .stat-chip{padding:8px 9px;min-width:0;}
+    .stat-chip:last-child{grid-column:1 / 2;}
+
+    #map{height:44vh;min-height:300px;}
+    .map-search{left:10px;right:10px;width:auto;gap:5px;}
+    .map-search input{min-width:0;font-size:12.5px;}
+    .map-search button{padding:8px 12px;}
+
+    #panel{padding:12px 12px 50px;}
+
+    /* Filtros reorganizados para móvil:
+       búsqueda completa → dos columnas → fecha → importar/exportar */
+    .filters{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;align-items:stretch;}
+    .filters input, .filters select{width:100%;min-width:0;padding:10px 9px;font-size:13px;}
+    .filters input[type=text]{grid-column:1 / -1;flex:none;}
+    #f-poblacion{grid-column:1;}
+    #f-tecnico{grid-column:2;}
+    #f-estado{grid-column:1 / -1;}
+    .date-filter-label{grid-column:1 / -1;width:100%;justify-content:space-between;gap:8px;}
+    .date-filter-label input{flex:1;min-width:0;width:100%;padding:9px 8px;}
+    #f-fecha-clear{grid-column:2;width:100%;margin-top:-8px;}
+    #import-btn,#export-btn{width:100%;margin:0;padding:10px 9px;}
+    #import-btn{grid-column:1;}
+    #export-btn{grid-column:2;}
+
+    .count-line{margin:2px 0 9px;font-size:11.5px;}
+
     thead{display:none;}
     table, tbody, tr, td{display:block;width:100%;}
     tbody tr{border:1px solid var(--line);margin-bottom:10px;border-radius:4px;}
     tbody td{border-bottom:none;padding:6px 12px;}
     tbody td:first-child{padding-top:10px;font-weight:700;}
     tbody td:last-child{padding-bottom:10px;}
+    .row-actions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;}
+    .row-actions button{padding:7px 5px;font-size:11px;}
   }
 
   /* ---------- AUTH / USER MANAGEMENT ---------- */
@@ -361,22 +392,6 @@
       <div id="users-list-wrap"></div>
     </div>
     <div class="modal-actions"><button class="btn-secondary" id="users-close-btn">Cerrar</button><button class="btn-primary" id="create-user-btn">Crear usuario</button></div>
-  </div>
-</div>
-
-
-<!-- MODAL: aviso de validación -->
-<div class="overlay" id="notice-overlay">
-  <div class="modal">
-    <div class="modal-head">
-      <h2>Aviso</h2>
-    </div>
-    <div class="modal-body">
-      <div id="notice-message"></div>
-    </div>
-    <div class="modal-actions">
-      <button class="btn-primary" id="notice-ok-btn">Aceptar</button>
-    </div>
   </div>
 </div>
 
@@ -745,36 +760,9 @@
 
   $('cancel-btn').addEventListener('click', closeModal);
 
-
-  function showNotice(message){
-    $('notice-message').textContent = message;
-    $('notice-overlay').classList.add('show');
-  }
-
-  function closeNotice(){
-    $('notice-overlay').classList.remove('show');
-  }
-
-  $('notice-ok-btn').addEventListener('click', closeNotice);
-  $('notice-overlay').addEventListener('click', (e) => {
-    if(e.target === $('notice-overlay')) closeNotice();
-  });
-
   $('save-btn').addEventListener('click', async () => {
     const direccion = $('f-input-direccion').value.trim();
     if(!direccion){ alert("Introduce al menos la dirección."); return; }
-
-    // Las dos fechas son obligatorias al crear o editar manualmente.
-    // La importación de Excel no pasa por esta validación y puede dejar fechas vacías.
-    const fechaReplanteo = $('f-input-fecha-replanteo').value;
-    const fechaVisita = $('f-input-fecha-visita').value;
-    const fallosFecha = [];
-    if(!fechaReplanteo) fallosFecha.push("• Fecha próximo replanteo");
-    if(!fechaVisita) fallosFecha.push("• Fecha de última visita");
-    if(fallosFecha.length){
-      showNotice("Es obligatorio completar las siguientes fechas antes de guardar:\n\n" + fallosFecha.join("\n"));
-      return;
-    }
 
     $('save-btn').disabled = true;
     const now = new Date();
@@ -791,9 +779,9 @@
       estado: $('f-input-estado').value,
       promotor: $('f-input-promotor').value.trim(),
       contacto: $('f-input-contacto').value.trim(),
-      fechaReplanteo,
+      fechaReplanteo: $('f-input-fecha-replanteo').value,
       entregaLlaves: $('f-input-entrega-llaves').value.trim(),
-      fechaVisita,
+      fechaVisita: $('f-input-fecha-visita').value,
       observaciones: $('f-input-obs').value.trim(),
       creado: editingId ? (obras.find(o=>o.id===editingId)?.creado || now.toISOString()) : now.toISOString(),
       creadoPorUid: currentUser?.id || null,
@@ -1264,7 +1252,7 @@
       "CONTACTO": o.contacto || "",
       "OBSERVACIONES": o.observaciones || "",
       "ESTADO": o.estado === "DESCARTADA" ? "SIN PERMISO" : (o.estado || ""),
-      "FECHA DE ULTIMA VISITA": o.fechaVisita ? formatFechaISO(o.fechaVisita) : "",
+      "FECHA DE ULTIMA VISITA": o.fechaVisita ? formatFechaISO(o.fechaVisita) : (o.creado ? new Date(o.creado).toLocaleDateString('es-ES') : ""),
       "TECNICO/S": o.tecnico || ""
     }));
   }
