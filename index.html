@@ -216,24 +216,10 @@
     h1{font-size:19px;}
     .subtitle{font-size:11.5px;line-height:1.45;}
 
-    /* Cuenta: nombre arriba y los tres botones debajo, en una sola línea */
-    .session-bar{
-      width:100%;
-      margin-left:0;
-      display:grid;
-      grid-template-columns:1fr 1fr 1fr;
-      gap:7px;
-    }
-    .user-pill{
-      grid-column:1 / -1;
-      min-width:0;
-      overflow:hidden;
-      text-overflow:ellipsis;
-      white-space:nowrap;
-      padding:8px 9px;
-    }
-    .session-bar .btn-header{padding:8px 9px;width:100%;}
-
+    /* Cuenta: nombre arriba y acciones debajo, sin amontonarlas */
+    .session-bar{width:100%;margin-left:0;display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:7px;}
+    .user-pill{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:8px 9px;}
+    .btn-header{padding:8px 9px;}
 
     /* Estados: 2 columnas + total a la izquierda */
     .stats-bar{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:12px;}
@@ -331,8 +317,8 @@
       </div>
       <div class="session-bar">
         <div class="user-pill" id="session-user-pill">Sin sesión</div>
-        <button class="btn-header" id="change-password-btn">Cambiar contraseña</button>
         <button class="btn-header admin" id="user-admin-btn">Usuarios</button>
+        <button class="btn-header" id="change-password-btn">Cambiar contraseña</button>
         <button class="btn-header" id="logout-btn">Salir</button>
       </div>
     </div>
