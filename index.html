@@ -87,10 +87,10 @@
   #map{height:52vh;min-height:340px;width:100%;}
   .map-search{
     position:absolute;top:10px;left:10px;z-index:500;
-    display:flex;gap:6px;width:300px;
+    display:flex;gap:6px;width:clamp(300px,42vw,560px);
   }
   .map-search input{
-    width:210px;flex:none;padding:8px 10px;border:1px solid var(--line);border-radius:3px;
+    width:auto;flex:1;min-width:0;padding:8px 10px;border:1px solid var(--line);border-radius:3px;
     font-family:'Archivo',sans-serif;font-size:13px;
     box-shadow:0 1px 3px rgba(0,0,0,.15);
   }
@@ -211,40 +211,53 @@
   .popup-actions button{flex:1;border:1px solid var(--line);background:#fff;border-radius:3px;padding:5px;font-size:11.5px;cursor:pointer;}
 
   @media(max-width:640px){
-    /* En móvil: usuario arriba y las acciones debajo, en una sola línea.
-       No cambia la distribución de escritorio. */
-    .session-bar{
-      width:100%;
-      margin-left:0;
-      display:flex;
-      flex-wrap:wrap;
-      gap:7px;
-    }
-    .session-bar .user-pill{
-      flex:0 0 100%;
-      min-width:0;
-      overflow:hidden;
-      text-overflow:ellipsis;
-      white-space:nowrap;
-    }
-    .session-bar .btn-header{
-      flex:1 1 0;
-      min-width:0;
-      padding:8px 7px;
-      white-space:nowrap;
-    }
-    .session-bar #change-password-btn{order:1;}
-    .session-bar #user-admin-btn{order:2;}
-    .session-bar #logout-btn{order:3;}
+    header{padding:16px 16px 14px;}
+    .head-row{gap:12px;}
+    h1{font-size:19px;}
+    .subtitle{font-size:11.5px;line-height:1.45;}
 
-    #map{height:44vh;}
-    .field-row{flex-direction:column;}
+    /* Cuenta: nombre arriba y acciones debajo, sin amontonarlas */
+    .session-bar{width:100%;margin-left:0;display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:7px;}
+    .user-pill{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:8px 9px;}
+    .btn-header{padding:8px 9px;}
+
+    /* Estados: 2 columnas + total a la izquierda */
+    .stats-bar{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:12px;}
+    .stat-chip{padding:8px 9px;min-width:0;}
+    .stat-chip:last-child{grid-column:1 / 2;}
+
+    #map{height:44vh;min-height:300px;}
+    .map-search{left:10px;right:10px;width:auto;gap:5px;}
+    .map-search input{min-width:0;font-size:12.5px;}
+    .map-search button{padding:8px 12px;}
+
+    #panel{padding:12px 12px 50px;}
+
+    /* Filtros reorganizados para móvil:
+       búsqueda completa → dos columnas → fecha → importar/exportar */
+    .filters{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;align-items:stretch;}
+    .filters input, .filters select{width:100%;min-width:0;padding:10px 9px;font-size:13px;}
+    .filters input[type=text]{grid-column:1 / -1;flex:none;}
+    #f-poblacion{grid-column:1;}
+    #f-tecnico{grid-column:2;}
+    #f-estado{grid-column:1 / -1;}
+    .date-filter-label{grid-column:1 / -1;width:100%;justify-content:space-between;gap:8px;}
+    .date-filter-label input{flex:1;min-width:0;width:100%;padding:9px 8px;}
+    #f-fecha-clear{grid-column:2;width:100%;margin-top:-8px;}
+    #import-btn,#export-btn{width:100%;margin:0;padding:10px 9px;}
+    #import-btn{grid-column:1;}
+    #export-btn{grid-column:2;}
+
+    .count-line{margin:2px 0 9px;font-size:11.5px;}
+
     thead{display:none;}
     table, tbody, tr, td{display:block;width:100%;}
     tbody tr{border:1px solid var(--line);margin-bottom:10px;border-radius:4px;}
     tbody td{border-bottom:none;padding:6px 12px;}
     tbody td:first-child{padding-top:10px;font-weight:700;}
     tbody td:last-child{padding-bottom:10px;}
+    .row-actions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;}
+    .row-actions button{padding:7px 5px;font-size:11px;}
   }
 
   /* ---------- AUTH / USER MANAGEMENT ---------- */
