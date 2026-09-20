@@ -219,7 +219,7 @@
     /* Cuenta: usuario arriba y los 3 botones juntos debajo */
     /* Móvil: usuario arriba y los 3 botones SIEMPRE en una sola fila.
        !important porque las reglas generales de .session-bar/.btn-header están después. */
-    .session-bar{width:100% !important;margin-left:0 !important;display:grid !important;grid-template-columns:.9fr 1.65fr .65fr !important;gap:5px !important;align-items:stretch !important;flex-wrap:nowrap !important;}
+    .session-bar{width:100% !important;margin-left:0 !important;display:grid !important;grid-template-columns:1.65fr .65fr .9fr !important;gap:5px !important;align-items:stretch !important;flex-wrap:nowrap !important;}
     .user-pill{grid-column:1 / -1 !important;text-align:center;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:8px 9px;}
     .btn-header{width:100% !important;min-width:0 !important;white-space:nowrap;padding:7px 4px;font-size:11px;}
     #user-admin-btn,#change-password-btn,#logout-btn{min-width:0 !important;margin:0;}
@@ -321,9 +321,9 @@
       </div>
       <div class="session-bar">
         <div class="user-pill" id="session-user-pill">Sin sesión</div>
-        <button class="btn-header admin" id="user-admin-btn">Usuarios</button>
         <button class="btn-header" id="change-password-btn">Cambiar contraseña</button>
         <button class="btn-header" id="logout-btn">Salir</button>
+        <button class="btn-header admin" id="user-admin-btn">Usuarios</button>
       </div>
     </div>
     <div class="stats-bar" id="stats-bar"></div>
