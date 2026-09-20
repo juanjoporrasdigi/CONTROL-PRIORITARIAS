@@ -116,62 +116,17 @@
 
   /* ---------- PANEL ---------- */
   #panel{flex:1;padding:16px 20px 60px;max-width:1180px;width:100%;margin:0 auto;}
-  /* Filtros: estructura estable en escritorio.
-     Fila 1: búsqueda + población + técnico + estado.
-     Fila 2: día + importar + exportar.
-     Así evitamos que flex-wrap y margin-left:auto desplacen controles
-     de forma diferente según el ancho de la ventana. */
   .filters{
-    display:grid;
-    grid-template-columns:minmax(280px,2fr) repeat(3,minmax(150px,1fr));
-    grid-template-areas:
-      "search poblacion tecnico estado"
-      "fecha import export .";
-    gap:10px;
-    align-items:center;
+    display:flex;gap:10px;flex-wrap:wrap;align-items:center;
     margin-bottom:14px;
   }
   .filters input, .filters select{
-    width:100%;
-    min-width:0;
-    box-sizing:border-box;
     padding:8px 10px;border:1px solid var(--line);border-radius:3px;
     font-family:'Archivo',sans-serif;font-size:13px;background:#fff;color:var(--ink);
   }
-  .filters input[type=text]{
-    grid-area:search;
-    width:100%;
-    min-width:0;
-  }
-  #f-poblacion{grid-area:poblacion;}
-  #f-tecnico{grid-area:tecnico;}
-  #f-estado{grid-area:estado;}
-  .date-filter-row{
-    grid-area:fecha;
-    min-width:0;
-    display:flex;
-    align-items:center;
-    gap:8px;
-  }
-  .date-filter-label{
-    flex:1;
-    min-width:0;
-  }
-  .date-filter-label input{
-    flex:1;
-    width:100%;
-    min-width:0;
-  }
-  #import-btn{
-    grid-area:import;
-    width:100%;
-    white-space:nowrap;
-  }
+  .filters input[type=text]{flex:1;min-width:160px;}
   .export-btn{
-    grid-area:export;
-    width:100%;
-    margin-left:0;
-    white-space:nowrap;
+    margin-left:auto;
     background:var(--navy);color:#fff;border:none;
     padding:9px 16px;border-radius:3px;font-weight:600;font-size:13px;
     cursor:pointer;
@@ -254,20 +209,6 @@
   .popup-select{width:100%;padding:5px;border:1px solid var(--line);border-radius:3px;margin-bottom:6px;font-size:12.5px;}
   .popup-actions{display:flex;gap:6px;}
   .popup-actions button{flex:1;border:1px solid var(--line);background:#fff;border-radius:3px;padding:5px;font-size:11.5px;cursor:pointer;}
-
-  /* Pantallas medianas: dos columnas para conservar todos los controles
-     dentro del panel antes de entrar en el diseño específico de móvil. */
-  @media(min-width:641px) and (max-width:900px){
-    .filters{
-      grid-template-columns:minmax(0,1fr) minmax(0,1fr);
-      grid-template-areas:
-        "search search"
-        "poblacion tecnico"
-        "estado estado"
-        "fecha fecha"
-        "import export";
-    }
-  }
 
   @media(max-width:640px){
     header{padding:16px 16px 14px;}
