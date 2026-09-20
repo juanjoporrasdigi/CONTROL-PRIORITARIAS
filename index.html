@@ -216,10 +216,13 @@
     h1{font-size:19px;}
     .subtitle{font-size:11.5px;line-height:1.45;}
 
-    /* Cuenta: nombre arriba y acciones debajo, sin amontonarlas */
-    .session-bar{width:100%;margin-left:0;display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:7px;}
-    .user-pill{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:8px 9px;}
-    .btn-header{padding:8px 9px;}
+    /* Cuenta: usuario arriba y los 3 botones juntos debajo */
+    /* Móvil: usuario arriba y los 3 botones SIEMPRE en una sola fila.
+       !important porque las reglas generales de .session-bar/.btn-header están después. */
+    .session-bar{width:100% !important;margin-left:0 !important;display:grid !important;grid-template-columns:.9fr 1.65fr .65fr !important;gap:5px !important;align-items:stretch !important;flex-wrap:nowrap !important;}
+    .user-pill{grid-column:1 / -1 !important;text-align:center;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:8px 9px;}
+    .btn-header{width:100% !important;min-width:0 !important;white-space:nowrap;padding:7px 4px;font-size:11px;}
+    #user-admin-btn,#change-password-btn,#logout-btn{min-width:0 !important;margin:0;}
 
     /* Estados: 2 columnas + total a la izquierda */
     .stats-bar{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:12px;}
@@ -241,9 +244,10 @@
     #f-poblacion{grid-column:1;}
     #f-tecnico{grid-column:2;}
     #f-estado{grid-column:1 / -1;}
-    .date-filter-label{grid-column:1 / -1;width:100%;justify-content:space-between;gap:8px;}
-    .date-filter-label input{flex:1;min-width:0;width:100%;padding:9px 8px;}
-    #f-fecha-clear{grid-column:2;width:100%;margin-top:-8px;}
+    .date-filter-row{grid-column:1 / -1;width:100%;display:flex;align-items:center;gap:8px;}
+    .date-filter-label{flex:1;min-width:0;width:auto;display:flex;align-items:center;gap:6px;}
+    .date-filter-label input{flex:1;min-width:0;width:100%;height:42px;box-sizing:border-box;padding:9px 8px;}
+    #f-fecha-clear{flex:0 0 42px;width:42px;height:42px;box-sizing:border-box;margin:0;padding:0;font-size:18px;display:flex;align-items:center;justify-content:center;}
     #import-btn,#export-btn{width:100%;margin:0;padding:10px 9px;}
     #import-btn{grid-column:1;}
     #export-btn{grid-column:2;}
@@ -346,10 +350,12 @@
         <option value="TERMINADO">Terminado / cobertura</option>
         <option value="DESCARTADA">Sin permiso</option>
       </select>
-      <label class="date-filter-label">Día:
-        <input type="date" id="f-fecha">
-      </label>
-      <button class="btn-secondary-flat" id="f-fecha-clear" title="Quitar filtro de día">✕</button>
+      <div class="date-filter-row">
+        <label class="date-filter-label">Día:
+          <input type="date" id="f-fecha">
+        </label>
+        <button class="btn-secondary-flat" id="f-fecha-clear" title="Quitar filtro de día">✕</button>
+      </div>
       <button class="btn-secondary-flat" id="import-btn" title="Importar obras desde un archivo Excel">Importar desde Excel</button>
       <input type="file" id="import-file" accept=".xlsx,.xls" style="display:none;">
       <button class="export-btn" id="export-btn">Exportar a Excel</button>
