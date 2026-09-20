@@ -314,6 +314,7 @@
   .required-note{font-size:11px;color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;}
 
 
+
   /* Mensaje de ubicación sin alert() del navegador: evita que Android muestre
      "La página https://..." en la cabecera del aviso. */
   .location-notice{
@@ -331,6 +332,7 @@
   .location-notice-body strong{font-weight:700;}
   .location-notice-actions{display:flex;justify-content:flex-end;padding:12px 20px 18px;}
   .location-notice-actions button{border:0;background:transparent;color:#168b82;padding:8px 4px;font-size:13px;font-weight:700;cursor:pointer;}
+
 </style>
 </head>
 <body>
@@ -405,17 +407,6 @@
 
 </div>
 
-<div class="location-notice" id="location-notice" role="dialog" aria-modal="true" aria-labelledby="location-notice-title">
-  <div class="location-notice-card">
-    <div class="location-notice-head">
-      <h2 id="location-notice-title">Ubicación no disponible</h2>
-    </div>
-    <div class="location-notice-body" id="location-notice-message"></div>
-    <div class="location-notice-actions">
-      <button type="button" id="location-notice-close">ACEPTAR</button>
-    </div>
-  </div>
-</div>
 
 <!-- MODAL: cambio obligatorio / cambio de contraseña -->
 <div class="overlay" id="password-overlay">
@@ -529,6 +520,17 @@
     </div>
   </div>
 </div>
+
+<div class="location-notice" id="location-notice" role="dialog" aria-modal="true" aria-labelledby="location-notice-title">
+  <div class="location-notice-card">
+    <div class="location-notice-head">
+      <h2 id="location-notice-title">Ubicación no disponible</h2>
+    </div>
+    <div class="location-notice-body" id="location-notice-message"></div>
+    <div class="location-notice-actions">
+      <button type="button" id="location-notice-close">ACEPTAR</button>
+    </div>
+  </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -1240,6 +1242,7 @@
     }
   });
 
+
   let userLocationMarker = null;
 
   // Aviso propio de la aplicación. No usamos alert() aquí porque Android
@@ -1312,7 +1315,6 @@
       showLocationNotice("La ubicación no está disponible en este entorno. Activa la ubicación del dispositivo y los permisos del navegador. Si no funciona, marca el punto directamente tocando el mapa donde estés.");
     }
   });
-
   const MESES_ES = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
   function formatFechaISO(iso){
     if(!iso) return "";
