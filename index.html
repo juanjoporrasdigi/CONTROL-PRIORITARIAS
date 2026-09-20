@@ -139,6 +139,26 @@
   .date-filter-label input{
     padding:7px 8px;border:1px solid var(--line);border-radius:3px;font-size:13px;
   }
+  /* AJUSTE SOLO ESCRITORIO: el campo Día llega hasta el botón ✕ */
+  @media(min-width:641px){
+    .date-filter-row{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      flex:1 1 280px;
+      min-width:280px;
+    }
+    .date-filter-label{
+      flex:1 1 auto;
+      min-width:0;
+    }
+    .date-filter-label input{
+      flex:1 1 auto;
+      min-width:0;
+      width:100%;
+    }
+  }
+
   .btn-secondary-flat{
     border:1px solid var(--line);background:#fff;border-radius:3px;
     padding:6px 10px;font-size:12px;cursor:pointer;color:var(--ink-soft);
