@@ -1265,49 +1265,101 @@
     }
   });
 
+  // ---------- GEOLOCALIZACIÓN ----------
+  // Este bloque está aislado del resto del mapa. Solo obtiene la posición,
+  // centra el mapa y muestra un marcador; no modifica ni guarda datos.
   let userLocationMarker = null;
-  let userAccuracyCircle = null;
+  let locatingUser = false;
+
+  function finishLocateButton(btn, text){
+    locatingUser = false;
+    btn.classList.remove('locating');
+    btn.disabled = false;
+    if(text) btn.setAttribute('aria-label', text);
+  }
+
+  function locateErrorMessage(err){
+    if(err && err.code === err.PERMISSION_DENIED){
+      return "El permiso de ubicación está bloqueado. Permite la ubicación para este navegador y vuelve a intentarlo.";
+    }
+    if(err && err.code === err.POSITION_UNAVAILABLE){
+      return "No se ha podido obtener una posición válida. Comprueba que la ubicación del dispositivo esté activada y vuelve a intentarlo.";
+    }
+    if(err && err.code === err.TIMEOUT){
+      return "Se ha agotado el tiempo para obtener tu ubicación. Comprueba la señal de ubicación y vuelve a intentarlo.";
+    }
+    return "No se ha podido obtener tu ubicación en este momento. Puedes marcar el punto directamente tocando el mapa.";
+  }
+
   $('locate-btn').addEventListener('click', () => {
+    const btn = $('locate-btn');
+
+    // Evita solicitudes simultáneas por pulsaciones repetidas.
+    if(locatingUser) return;
+
     if(!navigator.geolocation){
-      alert("Este entorno no permite acceder a la ubicación del navegador. Marca el punto directamente tocando el mapa donde estés.");
+      alert("Este entorno no permite acceder a la ubicación del navegador. Puedes marcar el punto directamente tocando el mapa.");
       return;
     }
-    const btn = $('locate-btn');
+
+    locatingUser = true;
+    btn.disabled = true;
     btn.classList.add('locating');
-    const timeout = setTimeout(() => {
-      btn.classList.remove('locating');
-      alert("No se ha podido obtener tu ubicación en este entorno (puede estar bloqueada por permisos). Marca el punto directamente tocando el mapa donde estés.");
-    }, 6000);
+    btn.setAttribute('aria-label', 'Buscando ubicación');
+    const originalText = btn.textContent;
+    btn.textContent = '📍 Buscando...';
+
+    const restoreButton = () => {
+      btn.textContent = originalText;
+      finishLocateButton(btn, 'Obtener mi ubicación');
+    };
+
     try{
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          clearTimeout(timeout);
-          btn.classList.remove('locating');
           const {latitude, longitude, accuracy} = pos.coords;
+
+          // Validación básica antes de utilizar las coordenadas.
+          if(!Number.isFinite(latitude) || !Number.isFinite(longitude) ||
+             latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180){
+            restoreButton();
+            alert("El navegador ha devuelto una ubicación no válida. Puedes marcar el punto directamente tocando el mapa.");
+            return;
+          }
+
           map.setView([latitude, longitude], 16);
-          if(userLocationMarker) map.removeLayer(userLocationMarker);
-          if(userAccuracyCircle) map.removeLayer(userAccuracyCircle);
-          const accTxt = (accuracy != null) ? `± ${Math.round(accuracy)} m de precisión` : "precisión desconocida";
-          userAccuracyCircle = L.circle([latitude, longitude], {
-            radius: accuracy || 0, color:'#2e6fa8', weight:1, fillColor:'#2e6fa8', fillOpacity:0.12
-          }).addTo(map);
+
+          if(userLocationMarker){
+            map.removeLayer(userLocationMarker);
+          }
+
           userLocationMarker = L.circleMarker([latitude, longitude], {
-            radius: 9, color:'#fff', weight:3, fillColor:'#2e6fa8', fillOpacity:1
-          }).addTo(map).bindPopup(`Tu ubicación actual<br>${accTxt}`).openPopup();
+            radius: 9,
+            color: '#fff',
+            weight: 3,
+            fillColor: '#2e6fa8',
+            fillOpacity: 1
+          }).addTo(map);
+
+          const precision = Number.isFinite(accuracy) ? `Precisión aproximada: ${Math.round(accuracy)} m` : '';
+          userLocationMarker.bindPopup(`Tu ubicación actual${precision ? `<br>${precision}` : ''}`).openPopup();
+
+          restoreButton();
         },
         (err) => {
-          clearTimeout(timeout);
-          btn.classList.remove('locating');
-          let msg = "No se pudo obtener tu ubicación. Marca el punto directamente tocando el mapa donde estés.";
-          if(err.code === err.PERMISSION_DENIED) msg = "Este entorno ha bloqueado el permiso de ubicación. Marca el punto directamente tocando el mapa donde estés.";
-          alert(msg);
+          restoreButton();
+          alert(locateErrorMessage(err));
         },
-        { enableHighAccuracy:true, timeout:5500 }
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        }
       );
     }catch(e){
-      clearTimeout(timeout);
-      btn.classList.remove('locating');
-      alert("La ubicación no está disponible en este entorno. Marca el punto directamente tocando el mapa donde estés.");
+      restoreButton();
+      console.error('Error iniciando geolocalización:', e);
+      alert("La ubicación no está disponible en este entorno. Puedes marcar el punto directamente tocando el mapa.");
     }
   });
 
