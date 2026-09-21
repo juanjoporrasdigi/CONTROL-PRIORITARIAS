@@ -179,6 +179,7 @@
     display:inline-block;padding:2px 8px;border-radius:2px;
     font-size:11px;font-family:'IBM Plex Mono',monospace;color:#fff;
   }
+  .badge.nueva{color:#3d2f00;}
   .obs-cell{max-width:220px;color:var(--ink-soft);}
   .row-actions{display:flex;gap:8px;}
   .row-actions button{
@@ -247,7 +248,7 @@
     /* Estados: 2 columnas + total a la izquierda */
     .stats-bar{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:12px;}
     .stat-chip{padding:8px 9px;min-width:0;}
-    .stat-chip:last-child{grid-column:1 / 2;}
+    .stat-chip:last-child{grid-column:auto;}
 
     #map{height:44vh;min-height:300px;}
     .map-search{left:10px;right:10px;width:auto;gap:5px;}
@@ -294,6 +295,10 @@
   .auth-error{display:none;padding:9px 10px;border:1px solid #e1aaaa;background:#fff5f5;color:#a33;font-size:12px;border-radius:3px;}
   .auth-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:4px;}
   .session-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-left:auto;}
+  .online-foot{display:flex;justify-content:flex-end;margin-top:10px;}
+  .online-pill{display:inline-flex;align-items:center;gap:6px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#3d4b5a;background:#eef1f4;padding:4px 9px;border:1px solid #cfd6de;border-radius:3px;cursor:default;white-space:nowrap;}
+  .online-dot{width:7px;height:7px;border-radius:50%;background:#2ecc71;box-shadow:0 0 0 0 rgba(46,204,113,.6);animation:onlinePulse 2s infinite;}
+  @keyframes onlinePulse{0%{box-shadow:0 0 0 0 rgba(46,204,113,.55);}70%{box-shadow:0 0 0 6px rgba(46,204,113,0);}100%{box-shadow:0 0 0 0 rgba(46,204,113,0);}}
   .user-pill{font-family:'IBM Plex Mono',monospace;font-size:11px;color:#d8e2ec;background:rgba(255,255,255,.08);padding:7px 9px;border:1px solid rgba(255,255,255,.18);border-radius:3px;}
   .btn-header{background:rgba(255,255,255,.08);color:#fff;border:1px solid rgba(255,255,255,.25);padding:7px 10px;border-radius:3px;cursor:pointer;font-size:12px;font-weight:600;}
   .btn-header:hover{background:rgba(255,255,255,.16);}
@@ -312,27 +317,6 @@
   .user-row-actions button.danger{color:#b33;border-color:#e1aaaa;}
   .current-user-label{font-size:10.5px;color:var(--green);font-family:'IBM Plex Mono',monospace;font-weight:600;padding:4px 0;}
   .required-note{font-size:11px;color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;}
-
-
-
-  /* Mensaje de ubicación sin alert() del navegador: evita que Android muestre
-     "La página https://..." en la cabecera del aviso. */
-  .location-notice{
-    position:fixed;inset:0;z-index:10000;display:none;align-items:center;justify-content:center;
-    padding:20px;background:rgba(0,0,0,.48);
-  }
-  .location-notice.show{display:flex;}
-  .location-notice-card{
-    width:min(430px,calc(100vw - 40px));background:#fff;border-radius:6px;
-    box-shadow:0 18px 50px rgba(0,0,0,.28);overflow:hidden;
-  }
-  .location-notice-head{padding:18px 20px 10px;border-bottom:1px solid var(--line);}
-  .location-notice-head h2{margin:0;font-size:17px;color:var(--ink);}
-  .location-notice-body{padding:16px 20px 8px;color:var(--ink);font-size:13px;line-height:1.55;}
-  .location-notice-body strong{font-weight:700;}
-  .location-notice-actions{display:flex;justify-content:flex-end;padding:12px 20px 18px;}
-  .location-notice-actions button{border:0;background:transparent;color:#168b82;padding:8px 4px;font-size:13px;font-weight:700;cursor:pointer;}
-
 </style>
 </head>
 <body>
@@ -386,6 +370,7 @@
       <select id="f-tecnico"><option value="">Técnico: todos</option></select>
       <select id="f-estado">
         <option value="">Estado: todos</option>
+        <option value="NUEVA">Nueva</option>
         <option value="PENDIENTE">Pendiente</option>
         <option value="EN ESTUDIO">En estudio</option>
         <option value="TERMINADO">Terminado / cobertura</option>
@@ -403,6 +388,7 @@
     </div>
     <p class="count-line" id="count-line"></p>
     <div id="table-wrap"></div>
+    <div class="online-foot"><div class="online-pill" id="online-pill" title="Usuarios conectados"><span class="online-dot"></span><span id="online-text">1 conectado</span></div></div>
   </div>
 
 </div>
@@ -477,6 +463,7 @@
         <div class="field">
           <label>Estado</label>
           <select id="f-input-estado">
+            <option value="NUEVA">Nueva</option>
             <option value="PENDIENTE">Pendiente</option>
             <option value="EN ESTUDIO">En estudio</option>
             <option value="TERMINADO">Terminado / cobertura</option>
@@ -521,17 +508,6 @@
   </div>
 </div>
 
-<div class="location-notice" id="location-notice" role="dialog" aria-modal="true" aria-labelledby="location-notice-title">
-  <div class="location-notice-card">
-    <div class="location-notice-head">
-      <h2 id="location-notice-title">Ubicación no disponible</h2>
-    </div>
-    <div class="location-notice-body" id="location-notice-message"></div>
-    <div class="location-notice-actions">
-      <button type="button" id="location-notice-close">ACEPTAR</button>
-    </div>
-  </div>
-
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -550,12 +526,14 @@
   // ============================================================
 
   const ESTADO_COLOR = {
+    "NUEVA":"#f5c400",
     "PENDIENTE":"#d95a1e",
     "EN ESTUDIO":"#2e6fa8",
     "TERMINADO":"#1f7a5c",
     "DESCARTADA":"#8a92a0"
   };
   const ESTADO_LABEL = {
+    "NUEVA":"Nueva",
     "PENDIENTE":"Pendiente",
     "EN ESTUDIO":"En estudio",
     "TERMINADO":"Terminado",
@@ -627,6 +605,7 @@
   let currentUser = null;
   let currentProfile = null;
   let realtimeChannel = null;
+  let presenceChannel = null;
   let forcePasswordChange = false;
 
   function isSuperadmin(){ return currentProfile?.rol === 'superadmin' && currentProfile?.activo === true; }
@@ -679,6 +658,7 @@
       setTimeout(()=>map.invalidateSize(true),300);
       await startSupabaseSync();
       startRealtimeSync();
+      startPresence();
       forcePasswordChange=!!currentProfile.debeCambiarPassword;
       if(forcePasswordChange) openPasswordModal(true);
     }catch(e){
@@ -688,7 +668,35 @@
     }
   }
 
+  // ---------- USUARIOS CONECTADOS (Supabase Realtime Presence) ----------
+  function setOnlineCount(n, nombres){
+    $('online-text').textContent = `${n} conectado${n===1?'':'s'}`;
+    $('online-pill').title = nombres && nombres.length ? 'Conectados ahora:\n' + nombres.join('\n') : 'Usuarios conectados';
+  }
+  function startPresence(){
+    stopPresence();
+    if(!currentUser) return;
+    // La clave es el id de usuario: varias pestañas de la misma persona cuentan como una
+    presenceChannel = supabaseClient.channel('presencia-usuarios',{config:{presence:{key:currentUser.id}}});
+    presenceChannel
+      .on('presence',{event:'sync'},()=>{
+        const state = presenceChannel.presenceState();
+        const nombres = Object.values(state).map(arr => arr[0]?.nombre).filter(Boolean).sort();
+        setOnlineCount(Object.keys(state).length, nombres);
+      })
+      .subscribe(async status => {
+        if(status === 'SUBSCRIBED'){
+          await presenceChannel.track({nombre: currentProfile?.nombre || currentProfile?.email || 'Usuario', desde: new Date().toISOString()});
+        }
+      });
+  }
+  async function stopPresence(){
+    if(presenceChannel){ const ch = presenceChannel; presenceChannel = null; try{ await supabaseClient.removeChannel(ch); }catch(e){} }
+    setOnlineCount(0, []);
+  }
+
   async function logout(){
+    await stopPresence();
     if(realtimeChannel){await supabaseClient.removeChannel(realtimeChannel);realtimeChannel=null;}
     await supabaseClient.auth.signOut();
     currentUser=null;currentProfile=null;obras=[];
@@ -714,6 +722,8 @@
       const payload={...obra};
       delete payload.id;
       delete payload.creadoPorUid; delete payload.creadoPorNombre; delete payload.modificadoPorUid; delete payload.modificadoPorNombre;
+      // Las columnas de tipo fecha no admiten cadena vacía: se envía null
+      ['fechaReplanteo','fechaVisita'].forEach(k=>{ if(payload[k]==='' || payload[k]===undefined) payload[k]=null; });
       if(obras.some(o=>o.id===obra.id)){
         payload.modificado=new Date().toISOString();
         payload.modificadoPorUid=currentUser?.id||null;
@@ -821,6 +831,16 @@
   $('save-btn').addEventListener('click', async () => {
     const direccion = $('f-input-direccion').value.trim();
     if(!direccion){ alert("Introduce al menos la dirección."); return; }
+    if(!$('f-input-fecha-replanteo').value){
+      alert("Campo «Fecha próximo replanteo» vacío. Rellénalo para poder guardar la obra.");
+      $('f-input-fecha-replanteo').focus();
+      return;
+    }
+    if(!$('f-input-fecha-visita').value){
+      alert("Campo «Fecha de última visita» vacío. Rellénalo para poder guardar la obra.");
+      $('f-input-fecha-visita').focus();
+      return;
+    }
 
     $('save-btn').disabled = true;
     const now = new Date();
@@ -885,6 +905,7 @@
         <div class="popup-title">${escapeHtml(obra.direccion || 'Sin dirección')}</div>
         <div class="popup-meta">${escapeHtml(obra.poblacion || '')} · ${escapeHtml(obra.tecnico || 'sin técnico')}</div>
         <select class="popup-select" data-id="${obra.id}">
+          <option value="NUEVA" ${obra.estado==='NUEVA'?'selected':''}>Nueva</option>
           <option value="PENDIENTE" ${obra.estado==='PENDIENTE'?'selected':''}>Pendiente</option>
           <option value="EN ESTUDIO" ${obra.estado==='EN ESTUDIO'?'selected':''}>En estudio</option>
           <option value="TERMINADO" ${obra.estado==='TERMINADO'?'selected':''}>Terminado</option>
@@ -925,10 +946,11 @@
   }
 
   function renderStats(){
-    const counts = {PENDIENTE:0,"EN ESTUDIO":0,TERMINADO:0,DESCARTADA:0};
+    const counts = {NUEVA:0,PENDIENTE:0,"EN ESTUDIO":0,TERMINADO:0,DESCARTADA:0};
     obras.forEach(o => { if(counts[o.estado] !== undefined) counts[o.estado]++; });
     const bar = $('stats-bar');
     bar.innerHTML = `
+      <div class="stat-chip"><span class="dot" style="background:${ESTADO_COLOR.NUEVA}"></span>Nueva <b>${counts.NUEVA}</b></div>
       <div class="stat-chip"><span class="dot" style="background:${ESTADO_COLOR.PENDIENTE}"></span>Pendiente <b>${counts.PENDIENTE}</b></div>
       <div class="stat-chip"><span class="dot" style="background:${ESTADO_COLOR['EN ESTUDIO']}"></span>En estudio <b>${counts['EN ESTUDIO']}</b></div>
       <div class="stat-chip"><span class="dot" style="background:${ESTADO_COLOR.TERMINADO}"></span>Terminado <b>${counts.TERMINADO}</b></div>
@@ -981,7 +1003,7 @@
       <tr data-id="${o.id}">
         <td>${escapeHtml(o.poblacion||'—')}</td>
         <td>${escapeHtml(o.direccion||'—')}</td>
-        <td><span class="badge" style="background:${ESTADO_COLOR[o.estado]}">${ESTADO_LABEL[o.estado]||o.estado}</span></td>
+        <td><span class="badge${o.estado==='NUEVA'?' nueva':''}" style="background:${ESTADO_COLOR[o.estado]}">${ESTADO_LABEL[o.estado]||o.estado}</span></td>
         <td>${escapeHtml(o.tecnico||'—')}</td>
         <td class="mono">${o.fechaVisita ? formatFechaISO(o.fechaVisita) : '—'}</td>
         <td class="obs-cell">${escapeHtml(o.observaciones||'')}</td>
@@ -1081,6 +1103,7 @@
     if(v === "SIN PERMISO" || v === "DESCARTADA") return "DESCARTADA";
     if(v === "TERMINADO" || v === "TERMINADA" || v === "COBERTURA") return "TERMINADO";
     if(v === "EN ESTUDIO") return "EN ESTUDIO";
+    if(v === "NUEVA" || v === "NUEVO") return "NUEVA";
     return "PENDIENTE";
   }
 
@@ -1242,53 +1265,23 @@
     }
   });
 
-
   let userLocationMarker = null;
-
-  // Aviso propio de la aplicación. No usamos alert() aquí porque Android
-  // añade automáticamente "La página https://..." al diálogo nativo.
-  function showLocationNotice(message){
-    const box = $('location-notice');
-    const text = $('location-notice-message');
-    if(!box || !text) return;
-    text.textContent = message;
-    box.classList.add('show');
-  }
-  function closeLocationNotice(){
-    const box = $('location-notice');
-    if(box) box.classList.remove('show');
-  }
-  $('location-notice-close')?.addEventListener('click', closeLocationNotice);
-  $('location-notice')?.addEventListener('click', (e) => {
-    if(e.target === $('location-notice')) closeLocationNotice();
-  });
-
   $('locate-btn').addEventListener('click', () => {
     if(!navigator.geolocation){
-      showLocationNotice("Este dispositivo o navegador no permite acceder a la ubicación. Activa la ubicación del dispositivo o marca el punto directamente tocando el mapa donde estés.");
+      alert("Este entorno no permite acceder a la ubicación del navegador. Marca el punto directamente tocando el mapa donde estés.");
       return;
     }
-
     const btn = $('locate-btn');
     btn.classList.add('locating');
-    let finished = false;
-    const finish = () => {
-      if(finished) return false;
-      finished = true;
-      clearTimeout(timeout);
-      btn.classList.remove('locating');
-      return true;
-    };
-
     const timeout = setTimeout(() => {
-      if(!finish()) return;
-      showLocationNotice("No se ha podido obtener tu ubicación a tiempo. Comprueba que la ubicación del teléfono esté activada y que el navegador tenga permiso para acceder a ella. Si no funciona, marca el punto directamente tocando el mapa donde estés.");
-    }, 7000);
-
+      btn.classList.remove('locating');
+      alert("No se ha podido obtener tu ubicación en este entorno (puede estar bloqueada por permisos). Marca el punto directamente tocando el mapa donde estés.");
+    }, 6000);
     try{
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          if(!finish()) return;
+          clearTimeout(timeout);
+          btn.classList.remove('locating');
           const {latitude, longitude} = pos.coords;
           map.setView([latitude, longitude], 16);
           if(userLocationMarker) map.removeLayer(userLocationMarker);
@@ -1297,24 +1290,21 @@
           }).addTo(map).bindPopup("Tu ubicación actual").openPopup();
         },
         (err) => {
-          if(!finish()) return;
-          let msg = "No se pudo obtener tu ubicación. Comprueba que la ubicación del teléfono esté activada. Si no funciona, marca el punto directamente tocando el mapa donde estés.";
-          if(err.code === err.PERMISSION_DENIED){
-            msg = "El permiso de ubicación está bloqueado para este navegador. Activa el permiso de ubicación para esta aplicación o navegador y vuelve a pulsar el botón 📍. También puedes marcar el punto directamente tocando el mapa donde estés.";
-          }else if(err.code === err.POSITION_UNAVAILABLE){
-            msg = "El dispositivo no ha podido determinar tu ubicación. Comprueba que el GPS/Ubicación esté activado y vuelve a intentarlo. También puedes marcar el punto directamente tocando el mapa donde estés.";
-          }else if(err.code === err.TIMEOUT){
-            msg = "Se ha agotado el tiempo para obtener tu ubicación. Comprueba que el GPS/Ubicación esté activado y vuelve a intentarlo. También puedes marcar el punto directamente tocando el mapa donde estés.";
-          }
-          showLocationNotice(msg);
+          clearTimeout(timeout);
+          btn.classList.remove('locating');
+          let msg = "No se pudo obtener tu ubicación. Marca el punto directamente tocando el mapa donde estés.";
+          if(err.code === err.PERMISSION_DENIED) msg = "Este entorno ha bloqueado el permiso de ubicación. Marca el punto directamente tocando el mapa donde estés.";
+          alert(msg);
         },
-        { enableHighAccuracy:true, timeout:6000, maximumAge:30000 }
+        { enableHighAccuracy:true, timeout:5500 }
       );
     }catch(e){
-      if(!finish()) return;
-      showLocationNotice("La ubicación no está disponible en este entorno. Activa la ubicación del dispositivo y los permisos del navegador. Si no funciona, marca el punto directamente tocando el mapa donde estés.");
+      clearTimeout(timeout);
+      btn.classList.remove('locating');
+      alert("La ubicación no está disponible en este entorno. Marca el punto directamente tocando el mapa donde estés.");
     }
   });
+
   const MESES_ES = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
   function formatFechaISO(iso){
     if(!iso) return "";
