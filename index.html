@@ -1266,6 +1266,7 @@
   });
 
   let userLocationMarker = null;
+  let userAccuracyCircle = null;
   $('locate-btn').addEventListener('click', () => {
     if(!navigator.geolocation){
       alert("Este entorno no permite acceder a la ubicación del navegador. Marca el punto directamente tocando el mapa donde estés.");
@@ -1282,12 +1283,17 @@
         (pos) => {
           clearTimeout(timeout);
           btn.classList.remove('locating');
-          const {latitude, longitude} = pos.coords;
+          const {latitude, longitude, accuracy} = pos.coords;
           map.setView([latitude, longitude], 16);
           if(userLocationMarker) map.removeLayer(userLocationMarker);
+          if(userAccuracyCircle) map.removeLayer(userAccuracyCircle);
+          const accTxt = (accuracy != null) ? `± ${Math.round(accuracy)} m de precisión` : "precisión desconocida";
+          userAccuracyCircle = L.circle([latitude, longitude], {
+            radius: accuracy || 0, color:'#2e6fa8', weight:1, fillColor:'#2e6fa8', fillOpacity:0.12
+          }).addTo(map);
           userLocationMarker = L.circleMarker([latitude, longitude], {
             radius: 9, color:'#fff', weight:3, fillColor:'#2e6fa8', fillOpacity:1
-          }).addTo(map).bindPopup("Tu ubicación actual").openPopup();
+          }).addTo(map).bindPopup(`Tu ubicación actual<br>${accTxt}`).openPopup();
         },
         (err) => {
           clearTimeout(timeout);
