@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Control de Prioritarias — Replanteos Málaga</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -180,7 +180,19 @@
     font-size:11px;font-family:'IBM Plex Mono',monospace;color:#fff;
   }
   .badge.nueva{color:#3d2f00;}
-  .obs-cell{max-width:220px;color:var(--ink-soft);}
+  .obs-cell{max-width:220px;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .obs-count{display:inline-block;margin-left:4px;padding:1px 5px;border-radius:8px;background:var(--line);color:var(--ink-soft);font-size:10px;font-family:'IBM Plex Mono',monospace;}
+  .comentarios-lista{max-height:160px;overflow-y:auto;border:1px solid var(--line);border-radius:4px;margin-bottom:8px;background:#fbfbfa;}
+  .comentario-item{padding:8px 10px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:8px;align-items:flex-start;}
+  .comentario-body{flex:1;min-width:0;}
+  .comentario-del-btn{flex-shrink:0;border:1px solid var(--line);background:#fff;border-radius:3px;padding:2px 6px;font-size:11px;color:var(--ink-soft);cursor:pointer;}
+  .comentario-del-btn:hover{border-color:#b3261e;color:#b3261e;}
+  .comentario-item:last-child{border-bottom:none;}
+  .comentario-meta{font-size:10.5px;color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;margin-bottom:2px;}
+  .comentario-texto{font-size:12.5px;white-space:pre-wrap;word-break:break-word;}
+  .comentarios-vacio{padding:10px;color:var(--ink-soft);font-size:12.5px;text-align:center;}
+  .comentario-nuevo textarea{width:100%;min-height:60px;resize:vertical;}
+  #add-comentario-btn{margin-top:6px;}
   .row-actions{display:flex;gap:8px;}
   .row-actions button{
     border:1px solid var(--line);background:#fff;border-radius:3px;
@@ -496,8 +508,12 @@
         <input type="date" id="f-input-fecha-visita">
       </div>
       <div class="field">
-        <label>Observaciones</label>
-        <textarea id="f-input-obs"></textarea>
+        <label>Comentarios</label>
+        <div id="comentarios-lista" class="comentarios-lista"></div>
+        <div class="comentario-nuevo">
+          <textarea id="f-input-obs-nuevo" placeholder="Escribe un nuevo comentario..."></textarea>
+          <button type="button" class="btn-secondary" id="add-comentario-btn">+ Añadir comentario</button>
+        </div>
       </div>
     </div>
     <div class="modal-actions">
@@ -768,6 +784,98 @@
     }
   }
 
+  // ---------- COMENTARIOS (historial, solo añadir, nunca borrar) ----------
+  let editingComentarios = [];
+
+  function parseComentarios(raw){
+    if(!raw) return [];
+    if(Array.isArray(raw)) return raw;
+    const s = String(raw).trim();
+    if(!s) return [];
+    if(s.startsWith('[')){
+      try{
+        const arr = JSON.parse(s);
+        if(Array.isArray(arr)) return arr;
+      }catch(e){/* no era JSON válido, se trata como texto antiguo */}
+    }
+    // Formato antiguo (texto suelto): se conserva como primer comentario del historial
+    return [{texto:s, fecha:null, autor:null}];
+  }
+
+  function comentariosToString(arr){
+    return JSON.stringify(arr || []);
+  }
+
+  function comentariosToPlainText(raw){
+    const arr = parseComentarios(raw);
+    if(!arr.length) return '';
+    return arr.map(c => {
+      const meta = [formatComentarioFecha(c.fecha), c.autor].filter(Boolean).join(' · ');
+      return meta ? `[${meta}] ${c.texto}` : (c.texto||'');
+    }).join('\n');
+  }
+
+  function formatComentarioFecha(iso){
+    if(!iso) return '';
+    const d = new Date(iso);
+    if(isNaN(d)) return '';
+    return d.toLocaleDateString('es-ES') + ' ' + d.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+  }
+
+  function renderComentarios(){
+    const cont = $('comentarios-lista');
+    if(!editingComentarios.length){
+      cont.innerHTML = '<div class="comentarios-vacio">Sin comentarios todavía.</div>';
+      return;
+    }
+    const puedeBorrar = canDeleteObras();
+    cont.innerHTML = editingComentarios.map((c,idx) => {
+      const meta = [formatComentarioFecha(c.fecha), c.autor].filter(Boolean).join(' · ');
+      return `
+        <div class="comentario-item">
+          <div class="comentario-body">
+            ${meta ? `<div class="comentario-meta">${escapeHtml(meta)}</div>` : ''}
+            <div class="comentario-texto">${escapeHtml(c.texto||'')}</div>
+          </div>
+          ${puedeBorrar ? `<button type="button" class="comentario-del-btn" data-idx="${idx}" title="Eliminar comentario">✕</button>` : ''}
+        </div>
+      `;
+    }).join('');
+    cont.scrollTop = cont.scrollHeight;
+    if(puedeBorrar){
+      cont.querySelectorAll('.comentario-del-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const idx = Number(btn.dataset.idx);
+          if(!confirm('¿Eliminar este comentario? No se puede deshacer.')) return;
+          editingComentarios.splice(idx, 1);
+          renderComentarios();
+        });
+      });
+    }
+  }
+
+  function obsPreview(raw){
+    const arr = parseComentarios(raw);
+    if(!arr.length) return '—';
+    const last = arr[arr.length-1];
+    const txt = String(last.texto||'').replace(/\s+/g,' ').trim();
+    const corto = txt.length > 60 ? txt.slice(0,60)+'…' : txt;
+    const base = escapeHtml(corto);
+    return arr.length > 1 ? `${base}<span class="obs-count">+${arr.length-1}</span>` : base;
+  }
+
+  $('add-comentario-btn').addEventListener('click', () => {
+    const txt = $('f-input-obs-nuevo').value.trim();
+    if(!txt) return;
+    editingComentarios.push({
+      texto: txt,
+      fecha: new Date().toISOString(),
+      autor: currentProfile?.nombre || currentProfile?.email || null
+    });
+    $('f-input-obs-nuevo').value = '';
+    renderComentarios();
+  });
+
   // ---------- MODAL ----------
   function resetForm(){
     $('f-input-poblacion').value = "";
@@ -781,7 +889,9 @@
     $('f-input-fecha-replanteo').value = "";
     $('f-input-entrega-llaves').value = "";
     $('f-input-fecha-visita').value = new Date().toISOString().slice(0,10);
-    $('f-input-obs').value = "";
+    editingComentarios = [];
+    $('f-input-obs-nuevo').value = "";
+    renderComentarios();
   }
 
   async function openModal(latlng, existing){
@@ -806,7 +916,8 @@
       $('f-input-fecha-replanteo').value = existing.fechaReplanteo || "";
       $('f-input-entrega-llaves').value = existing.entregaLlaves || "";
       $('f-input-fecha-visita').value = existing.fechaVisita || "";
-      $('f-input-obs').value = existing.observaciones || "";
+      editingComentarios = parseComentarios(existing.observaciones);
+      renderComentarios();
     } else {
       $('geo-status').textContent = "Buscando dirección...";
       const geo = await reverseGeocode(latlng.lat, latlng.lng);
@@ -824,6 +935,7 @@
     $('overlay').classList.remove('show');
     editingId = null;
     pendingLatLng = null;
+    editingComentarios = [];
   }
 
   $('cancel-btn').addEventListener('click', closeModal);
@@ -840,6 +952,17 @@
       alert("Campo «Fecha de última visita» vacío. Rellénalo para poder guardar la obra.");
       $('f-input-fecha-visita').focus();
       return;
+    }
+
+    const comentarioSuelto = $('f-input-obs-nuevo').value.trim();
+    if(comentarioSuelto){
+      editingComentarios.push({
+        texto: comentarioSuelto,
+        fecha: new Date().toISOString(),
+        autor: currentProfile?.nombre || currentProfile?.email || null
+      });
+      $('f-input-obs-nuevo').value = "";
+      renderComentarios();
     }
 
     $('save-btn').disabled = true;
@@ -860,7 +983,7 @@
       fechaReplanteo: $('f-input-fecha-replanteo').value,
       entregaLlaves: $('f-input-entrega-llaves').value.trim(),
       fechaVisita: $('f-input-fecha-visita').value,
-      observaciones: $('f-input-obs').value.trim(),
+      observaciones: comentariosToString(editingComentarios),
       creado: editingId ? (obras.find(o=>o.id===editingId)?.creado || now.toISOString()) : now.toISOString(),
       creadoPorUid: currentUser?.id || null,
       creadoPorNombre: currentProfile?.nombre || currentProfile?.email || null,
@@ -1006,7 +1129,7 @@
         <td><span class="badge${o.estado==='NUEVA'?' nueva':''}" style="background:${ESTADO_COLOR[o.estado]}">${ESTADO_LABEL[o.estado]||o.estado}</span></td>
         <td>${escapeHtml(o.tecnico||'—')}</td>
         <td class="mono">${o.fechaVisita ? formatFechaISO(o.fechaVisita) : '—'}</td>
-        <td class="obs-cell">${escapeHtml(o.observaciones||'')}</td>
+        <td class="obs-cell" title="${escapeHtml(comentariosToPlainText(o.observaciones))}">${obsPreview(o.observaciones)}</td>
         <td><div class="row-actions">
           <button data-action="ver">Ver en mapa</button>
           <button data-action="maps">Google Maps</button>
@@ -1207,7 +1330,7 @@
           fechaReplanteo: excelDateToISO(row["FECHA PROXIMO REPLANTEO"]),
           entregaLlaves: String(row["ENTREGA DE LLAVES"] || "").trim(),
           fechaVisita: excelDateToISO(row["FECHA DE ULTIMA VISITA"]),
-          observaciones: String(row["OBSERVACIONES"] || "").trim(),
+          observaciones: comentariosToString(parseComentarios(row["OBSERVACIONES"])),
           creado: now.toISOString()
         };
 
@@ -1265,101 +1388,43 @@
     }
   });
 
-  // ---------- GEOLOCALIZACIÓN ----------
-  // Este bloque está aislado del resto del mapa. Solo obtiene la posición,
-  // centra el mapa y muestra un marcador; no modifica ni guarda datos.
   let userLocationMarker = null;
-  let locatingUser = false;
-
-  function finishLocateButton(btn, text){
-    locatingUser = false;
-    btn.classList.remove('locating');
-    btn.disabled = false;
-    if(text) btn.setAttribute('aria-label', text);
-  }
-
-  function locateErrorMessage(err){
-    if(err && err.code === err.PERMISSION_DENIED){
-      return "El permiso de ubicación está bloqueado. Permite la ubicación para este navegador y vuelve a intentarlo.";
-    }
-    if(err && err.code === err.POSITION_UNAVAILABLE){
-      return "No se ha podido obtener una posición válida. Comprueba que la ubicación del dispositivo esté activada y vuelve a intentarlo.";
-    }
-    if(err && err.code === err.TIMEOUT){
-      return "Se ha agotado el tiempo para obtener tu ubicación. Comprueba la señal de ubicación y vuelve a intentarlo.";
-    }
-    return "No se ha podido obtener tu ubicación en este momento. Puedes marcar el punto directamente tocando el mapa.";
-  }
-
   $('locate-btn').addEventListener('click', () => {
-    const btn = $('locate-btn');
-
-    // Evita solicitudes simultáneas por pulsaciones repetidas.
-    if(locatingUser) return;
-
     if(!navigator.geolocation){
-      alert("Este entorno no permite acceder a la ubicación del navegador. Puedes marcar el punto directamente tocando el mapa.");
+      alert("Este entorno no permite acceder a la ubicación del navegador. Marca el punto directamente tocando el mapa donde estés.");
       return;
     }
-
-    locatingUser = true;
-    btn.disabled = true;
+    const btn = $('locate-btn');
     btn.classList.add('locating');
-    btn.setAttribute('aria-label', 'Buscando ubicación');
-    const originalText = btn.textContent;
-    btn.textContent = '📍 Buscando...';
-
-    const restoreButton = () => {
-      btn.textContent = originalText;
-      finishLocateButton(btn, 'Obtener mi ubicación');
-    };
-
+    const timeout = setTimeout(() => {
+      btn.classList.remove('locating');
+      alert("No se ha podido obtener tu ubicación en este entorno (puede estar bloqueada por permisos). Marca el punto directamente tocando el mapa donde estés.");
+    }, 6000);
     try{
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          const {latitude, longitude, accuracy} = pos.coords;
-
-          // Validación básica antes de utilizar las coordenadas.
-          if(!Number.isFinite(latitude) || !Number.isFinite(longitude) ||
-             latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180){
-            restoreButton();
-            alert("El navegador ha devuelto una ubicación no válida. Puedes marcar el punto directamente tocando el mapa.");
-            return;
-          }
-
+          clearTimeout(timeout);
+          btn.classList.remove('locating');
+          const {latitude, longitude} = pos.coords;
           map.setView([latitude, longitude], 16);
-
-          if(userLocationMarker){
-            map.removeLayer(userLocationMarker);
-          }
-
+          if(userLocationMarker) map.removeLayer(userLocationMarker);
           userLocationMarker = L.circleMarker([latitude, longitude], {
-            radius: 9,
-            color: '#fff',
-            weight: 3,
-            fillColor: '#2e6fa8',
-            fillOpacity: 1
-          }).addTo(map);
-
-          const precision = Number.isFinite(accuracy) ? `Precisión aproximada: ${Math.round(accuracy)} m` : '';
-          userLocationMarker.bindPopup(`Tu ubicación actual${precision ? `<br>${precision}` : ''}`).openPopup();
-
-          restoreButton();
+            radius: 9, color:'#fff', weight:3, fillColor:'#2e6fa8', fillOpacity:1
+          }).addTo(map).bindPopup("Tu ubicación actual").openPopup();
         },
         (err) => {
-          restoreButton();
-          alert(locateErrorMessage(err));
+          clearTimeout(timeout);
+          btn.classList.remove('locating');
+          let msg = "No se pudo obtener tu ubicación. Marca el punto directamente tocando el mapa donde estés.";
+          if(err.code === err.PERMISSION_DENIED) msg = "Este entorno ha bloqueado el permiso de ubicación. Marca el punto directamente tocando el mapa donde estés.";
+          alert(msg);
         },
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0
-        }
+        { enableHighAccuracy:true, timeout:5500 }
       );
     }catch(e){
-      restoreButton();
-      console.error('Error iniciando geolocalización:', e);
-      alert("La ubicación no está disponible en este entorno. Puedes marcar el punto directamente tocando el mapa.");
+      clearTimeout(timeout);
+      btn.classList.remove('locating');
+      alert("La ubicación no está disponible en este entorno. Marca el punto directamente tocando el mapa donde estés.");
     }
   });
 
@@ -1389,7 +1454,7 @@
       "PROMOTOR": o.promotor || "",
       "LINK DE GOOGLE": (Number.isFinite(Number(o.lat)) && Number.isFinite(Number(o.lon))) ? `${o.lat}, ${o.lon}` : "",
       "CONTACTO": o.contacto || "",
-      "OBSERVACIONES": o.observaciones || "",
+      "OBSERVACIONES": comentariosToPlainText(o.observaciones),
       "ESTADO": o.estado === "DESCARTADA" ? "SIN PERMISO" : (o.estado || ""),
       "FECHA DE ULTIMA VISITA": o.fechaVisita ? formatFechaISO(o.fechaVisita) : (o.creado ? new Date(o.creado).toLocaleDateString('es-ES') : ""),
       "TECNICO/S": o.tecnico || ""
