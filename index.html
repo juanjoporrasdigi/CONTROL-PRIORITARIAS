@@ -307,7 +307,7 @@
   .auth-error{display:none;padding:9px 10px;border:1px solid #e1aaaa;background:#fff5f5;color:#a33;font-size:12px;border-radius:3px;}
   .auth-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:4px;}
   .session-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-left:auto;}
-  .online-foot{display:flex;justify-content:flex-end;margin-top:10px;}
+  .online-foot{display:flex;justify-content:flex-end;gap:8px;margin-top:10px;}
   .online-pill{display:inline-flex;align-items:center;gap:6px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#3d4b5a;background:#eef1f4;padding:4px 9px;border:1px solid #cfd6de;border-radius:3px;cursor:default;white-space:nowrap;}
   .online-dot{width:7px;height:7px;border-radius:50%;background:#2ecc71;box-shadow:0 0 0 0 rgba(46,204,113,.6);animation:onlinePulse 2s infinite;}
   @keyframes onlinePulse{0%{box-shadow:0 0 0 0 rgba(46,204,113,.55);}70%{box-shadow:0 0 0 6px rgba(46,204,113,0);}100%{box-shadow:0 0 0 0 rgba(46,204,113,0);}}
@@ -400,7 +400,10 @@
     </div>
     <p class="count-line" id="count-line"></p>
     <div id="table-wrap"></div>
-    <div class="online-foot"><div class="online-pill" id="online-pill" title="Usuarios conectados"><span class="online-dot"></span><span id="online-text">1 conectado</span></div></div>
+    <div class="online-foot">
+      <div class="online-pill" id="online-pill" title="Usuarios conectados"><span class="online-dot"></span><span id="online-text">1 conectado</span></div>
+      <div class="online-pill" id="conexiones-pill" title="Total de conexiones registradas"><span id="conexiones-text">— conexiones</span></div>
+    </div>
   </div>
 
 </div>
@@ -675,6 +678,7 @@
       await startSupabaseSync();
       startRealtimeSync();
       startPresence();
+      logConexion();
       forcePasswordChange=!!currentProfile.debeCambiarPassword;
       if(forcePasswordChange) openPasswordModal(true);
     }catch(e){
@@ -706,6 +710,23 @@
         }
       });
   }
+  // ---------- CONTADOR HISTÓRICO DE CONEXIONES (tabla 'conexiones' en Supabase) ----------
+  async function logConexion(){
+    try{
+      await supabaseClient.from('conexiones').insert({usuario_id: currentUser?.id || null});
+    }catch(e){ console.error('No se pudo registrar la conexión', e); }
+    await refreshConexionesTotal();
+  }
+  async function refreshConexionesTotal(){
+    try{
+      const {count, error} = await supabaseClient.from('conexiones').select('id',{count:'exact', head:true});
+      if(error) throw error;
+      $('conexiones-text').textContent = `${count ?? 0} conexion${count===1?'':'es'}`;
+    }catch(e){
+      $('conexiones-text').textContent = '— conexiones';
+    }
+  }
+
   async function stopPresence(){
     if(presenceChannel){ const ch = presenceChannel; presenceChannel = null; try{ await supabaseClient.removeChannel(ch); }catch(e){} }
     setOnlineCount(0, []);
