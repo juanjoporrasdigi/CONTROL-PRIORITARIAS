@@ -964,11 +964,6 @@
   $('save-btn').addEventListener('click', async () => {
     const direccion = $('f-input-direccion').value.trim();
     if(!direccion){ alert("Introduce al menos la dirección."); return; }
-    if(!$('f-input-fecha-replanteo').value){
-      alert("Campo «Fecha próximo replanteo» vacío. Rellénalo para poder guardar la obra.");
-      $('f-input-fecha-replanteo').focus();
-      return;
-    }
     if(!$('f-input-fecha-visita').value){
       alert("Campo «Fecha de última visita» vacío. Rellénalo para poder guardar la obra.");
       $('f-input-fecha-visita').focus();
