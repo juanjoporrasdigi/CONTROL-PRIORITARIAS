@@ -317,6 +317,80 @@
   .btn-header.admin{border-color:rgba(255,255,255,.4);}
   #user-admin-btn{display:none;}
   .users-modal{max-width:760px;}
+
+  /* ---------- FOTOS (cámara / enviar a DS) ---------- */
+  .fotos-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;}
+  .btn-camera{
+    display:flex;align-items:center;gap:6px;
+    background:var(--blue);color:#fff;border:none;
+    padding:9px 14px;border-radius:3px;font-weight:600;font-size:13px;cursor:pointer;
+  }
+  .btn-camera:hover{background:#245984;}
+  .btn-send-ds{
+    display:flex;align-items:center;gap:6px;
+    background:var(--orange);color:#fff;border:none;
+    padding:9px 14px;border-radius:3px;font-weight:600;font-size:13px;cursor:pointer;
+  }
+  .btn-send-ds:hover{background:#b84a17;}
+  .btn-send-ds:disabled{background:var(--gray);cursor:not-allowed;}
+  .fotos-gallery{
+    display:flex;flex-wrap:wrap;gap:8px;margin-bottom:4px;
+  }
+  .foto-thumb{
+    position:relative;width:64px;height:64px;border-radius:3px;overflow:hidden;
+    border:1px solid var(--line);flex:none;
+  }
+  .foto-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+  .foto-thumb button{
+    position:absolute;top:2px;right:2px;
+    width:18px;height:18px;border-radius:50%;border:none;
+    background:rgba(18,34,54,.75);color:#fff;font-size:11px;line-height:1;
+    cursor:pointer;display:flex;align-items:center;justify-content:center;
+  }
+  .foto-thumb button:hover{background:var(--orange);}
+  .fotos-empty{font-size:12px;color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;margin:2px 0 8px;}
+
+  /* ---------- CÁMARA EN RÁFAGA ---------- */
+  #cam-overlay{
+    display:none;position:fixed;inset:0;z-index:100000;background:#000;
+    flex-direction:column;
+  }
+  #cam-overlay.show{display:flex;}
+  .cam-top{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:calc(10px + env(safe-area-inset-top,0px)) 14px 10px;
+    background:rgba(18,34,54,.92);color:#fff;
+  }
+  .cam-count{font-family:'IBM Plex Mono',monospace;font-size:13px;}
+  .cam-done{
+    background:var(--orange);color:#fff;border:none;border-radius:3px;
+    padding:9px 18px;font-weight:600;font-size:14px;cursor:pointer;
+  }
+  .cam-stage{position:relative;flex:1;min-height:0;background:#000;}
+  #cam-video{width:100%;height:100%;object-fit:contain;display:block;background:#000;}
+  #cam-flash{
+    position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;
+    transition:opacity .25s ease-out;
+  }
+  #cam-flash.on{opacity:.55;transition:none;}
+  .cam-bottom{
+    background:rgba(18,34,54,.92);padding:10px 14px calc(14px + env(safe-area-inset-bottom,0px));
+    display:flex;flex-direction:column;gap:10px;align-items:center;
+  }
+  .cam-strip{
+    display:flex;gap:8px;overflow-x:auto;width:100%;min-height:64px;
+    align-items:center;-webkit-overflow-scrolling:touch;
+  }
+  .cam-strip:empty::before{
+    content:'Las fotos que hagas aparecerán aquí';
+    color:#9fb0c3;font-size:12px;font-family:'IBM Plex Mono',monospace;
+  }
+  .cam-shutter{
+    width:68px;height:68px;border-radius:50%;flex:none;cursor:pointer;
+    background:#fff;border:4px solid rgba(255,255,255,.45);
+    background-clip:padding-box;box-shadow:0 0 0 3px #fff inset;
+  }
+  .cam-shutter:active{transform:scale(.92);background:#ddd;}
   .users-table{width:100%;border-collapse:collapse;}
   .users-table th,.users-table td{padding:8px;border-bottom:1px solid var(--line);font-size:12px;text-align:left;}
   .users-table th{font-family:'IBM Plex Mono',monospace;color:var(--ink-soft);font-weight:500;background:#f6f7f5;}
@@ -511,6 +585,16 @@
         <input type="date" id="f-input-fecha-visita">
       </div>
       <div class="field">
+        <label>Fotos</label>
+        <div class="fotos-toolbar">
+          <button type="button" class="btn-camera" id="camera-btn">📷 Añadir foto</button>
+          <button type="button" class="btn-send-ds" id="send-ds-btn" disabled>Enviar a DS</button>
+        </div>
+        <input type="file" id="camera-input" accept="image/*" capture="environment" multiple style="display:none;">
+        <div class="fotos-gallery" id="fotos-gallery"></div>
+        <p class="fotos-empty" id="fotos-empty">Sin fotos añadidas todavía.</p>
+      </div>
+      <div class="field">
         <label>Comentarios</label>
         <div id="comentarios-lista" class="comentarios-lista"></div>
         <div class="comentario-nuevo">
@@ -524,6 +608,21 @@
       <button class="btn-secondary" id="cancel-btn">Cancelar</button>
       <button class="btn-primary" id="save-btn">Guardar</button>
     </div>
+  </div>
+</div>
+
+<div id="cam-overlay" role="dialog" aria-label="Cámara">
+  <div class="cam-top">
+    <span class="cam-count" id="cam-count">0 fotos</span>
+    <button type="button" class="cam-done" id="cam-done">Listo</button>
+  </div>
+  <div class="cam-stage">
+    <video id="cam-video" playsinline muted autoplay></video>
+    <div id="cam-flash"></div>
+  </div>
+  <div class="cam-bottom">
+    <div class="cam-strip" id="cam-strip"></div>
+    <button type="button" class="cam-shutter" id="cam-shutter" aria-label="Hacer foto"></button>
   </div>
 </div>
 
@@ -564,6 +663,7 @@
   let pendingLatLng = null;
   let editingId = null;
   let techName = "";
+  let editingFotos = []; // fotos tomadas en esta sesión de edición, pendientes de enviar a DS
 
   const $ = (id) => document.getElementById(id);
 
@@ -805,6 +905,180 @@
     }
   }
 
+  // ---------- FOTOS (cámara + galería temporal + enviar a DS) ----------
+  function renderFotoGallery(){
+    const cont = $('fotos-gallery');
+    const vacio = $('fotos-empty');
+    const sendBtn = $('send-ds-btn');
+    cont.innerHTML = editingFotos.map(f => `
+      <div class="foto-thumb" data-foto-id="${f.id}">
+        <img src="${f.url}" alt="Foto de la obra">
+        <button type="button" data-remove-foto="${f.id}" title="Quitar foto">✕</button>
+      </div>
+    `).join('');
+    vacio.style.display = editingFotos.length ? 'none' : '';
+    sendBtn.disabled = !editingFotos.length;
+    cont.querySelectorAll('[data-remove-foto]').forEach(btn => {
+      btn.addEventListener('click', () => removeFoto(btn.dataset.removeFoto));
+    });
+    renderCamStrip();
+  }
+
+  function addFotos(fileList){
+    Array.from(fileList || []).forEach(file => {
+      if(!file.type || !file.type.startsWith('image/')) return;
+      editingFotos.push({
+        id: 'f' + Date.now() + Math.random().toString(36).slice(2,7),
+        file,
+        url: URL.createObjectURL(file)
+      });
+    });
+    renderFotoGallery();
+  }
+
+  function removeFoto(id){
+    const idx = editingFotos.findIndex(f => f.id === id);
+    if(idx === -1) return;
+    URL.revokeObjectURL(editingFotos[idx].url);
+    editingFotos.splice(idx, 1);
+    renderFotoGallery();
+  }
+
+  function clearFotos(){
+    editingFotos.forEach(f => URL.revokeObjectURL(f.url));
+    editingFotos = [];
+    renderFotoGallery();
+  }
+
+  async function sendFotosToDS(){
+    if(!editingFotos.length) return;
+    const files = editingFotos.map(f => f.file);
+    const direccion = $('f-input-direccion').value.trim() || 'obra';
+    try{
+      if(navigator.canShare && navigator.canShare({ files })){
+        await navigator.share({
+          files,
+          title: 'Fotos — ' + direccion,
+          text: 'Fotos de la obra: ' + direccion
+        });
+      } else {
+        alert('Este dispositivo/navegador no admite compartir fotos directamente. Guarda las fotos y súbelas a DS manualmente desde la galería.');
+      }
+    }catch(e){
+      // El usuario cancela el menú de compartir: no es un error real, no mostramos alerta.
+      if(e && e.name !== 'AbortError') console.error(e);
+    }
+  }
+
+  // ---------- CÁMARA EN RÁFAGA ----------
+  // Visor propio: cada toque del obturador guarda la foto al instante, sin pedir
+  // confirmación. Al terminar se pulsa "Listo" y se borran con la ✕ las que sobren.
+  let camStream = null;
+
+  function renderCamStrip(){
+    const strip = $('cam-strip');
+    if(!strip) return;
+    strip.innerHTML = editingFotos.map(f => `
+      <div class="foto-thumb" data-foto-id="${f.id}">
+        <img src="${f.url}" alt="Foto">
+        <button type="button" data-cam-remove="${f.id}" title="Quitar foto">✕</button>
+      </div>
+    `).join('');
+    strip.querySelectorAll('[data-cam-remove]').forEach(btn => {
+      btn.addEventListener('click', () => removeFoto(btn.dataset.camRemove));
+    });
+    strip.scrollLeft = strip.scrollWidth;
+    const n = editingFotos.length;
+    $('cam-count').textContent = n + (n === 1 ? ' foto' : ' fotos');
+  }
+
+  function stopCamStream(){
+    if(camStream){
+      camStream.getTracks().forEach(t => t.stop());
+      camStream = null;
+    }
+    $('cam-video').srcObject = null;
+  }
+
+  async function startCamStream(){
+    stopCamStream();
+    camStream = await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: {
+        facingMode: { ideal: 'environment' },
+        width:  { ideal: 2560 },
+        height: { ideal: 1440 }
+      }
+    });
+    const v = $('cam-video');
+    v.srcObject = camStream;
+    try{ await v.play(); }catch(_){}
+  }
+
+  async function openCamera(){
+    // Sin getUserMedia (p. ej. archivo abierto sin https): usamos la cámara nativa de siempre.
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      $('camera-input').click();
+      return;
+    }
+    try{
+      await startCamStream();
+      $('cam-overlay').classList.add('show');
+      renderCamStrip();
+    }catch(e){
+      console.error(e);
+      stopCamStream();
+      $('camera-input').click(); // plan B: cámara nativa
+    }
+  }
+
+  function closeCamera(){
+    $('cam-overlay').classList.remove('show');
+    stopCamStream();
+  }
+
+  function takeBurstPhoto(){
+    const v = $('cam-video');
+    if(!v.videoWidth) return; // el visor aún no está listo
+    const canvas = document.createElement('canvas');
+    canvas.width = v.videoWidth;
+    canvas.height = v.videoHeight;
+    canvas.getContext('2d').drawImage(v, 0, 0, canvas.width, canvas.height);
+
+    // Feedback inmediato: destello + vibración corta
+    const fl = $('cam-flash');
+    fl.classList.add('on');
+    requestAnimationFrame(() => requestAnimationFrame(() => fl.classList.remove('on')));
+    if(navigator.vibrate) navigator.vibrate(25);
+
+    canvas.toBlob(blob => {
+      if(!blob) return;
+      const d = new Date();
+      const pad = n => String(n).padStart(2,'0');
+      const name = 'foto_' + d.getFullYear() + pad(d.getMonth()+1) + pad(d.getDate()) + '_' +
+                   pad(d.getHours()) + pad(d.getMinutes()) + pad(d.getSeconds()) + '_' +
+                   Math.random().toString(36).slice(2,5) + '.jpg';
+      addFotos([new File([blob], name, { type: 'image/jpeg' })]);
+    }, 'image/jpeg', 0.9);
+  }
+
+  $('camera-btn').addEventListener('click', openCamera);
+  $('cam-shutter').addEventListener('click', takeBurstPhoto);
+  $('cam-done').addEventListener('click', closeCamera);
+  document.addEventListener('visibilitychange', async () => {
+    // Al volver a la pestaña con el visor abierto, reactivamos la cámara
+    if(document.visibilityState === 'visible' && $('cam-overlay').classList.contains('show')){
+      try{ await startCamStream(); }catch(_){}
+    }
+  });
+
+  // Plan B: cámara nativa (una foto por vez) si el visor propio no está disponible
+  $('camera-input').addEventListener('change', (e) => {
+    addFotos(e.target.files);
+    e.target.value = ''; // permite volver a tomar otra foto aunque sea "la misma"
+  });
+  $('send-ds-btn').addEventListener('click', sendFotosToDS);
+
   // ---------- COMENTARIOS (historial, solo añadir, nunca borrar) ----------
   let editingComentarios = [];
 
@@ -913,6 +1187,7 @@
     editingComentarios = [];
     $('f-input-obs-nuevo').value = "";
     renderComentarios();
+    clearFotos();
   }
 
   async function openModal(latlng, existing){
@@ -957,6 +1232,7 @@
     editingId = null;
     pendingLatLng = null;
     editingComentarios = [];
+    clearFotos();
   }
 
   $('cancel-btn').addEventListener('click', closeModal);
@@ -968,6 +1244,10 @@
       alert("Campo «Fecha de última visita» vacío. Rellénalo para poder guardar la obra.");
       $('f-input-fecha-visita').focus();
       return;
+    }
+    if(editingFotos.length){
+      const seguir = confirm(`Tienes ${editingFotos.length} foto${editingFotos.length===1?'':'s'} sin enviar a DS. Se perderán al guardar.\n\n¿Quieres continuar sin enviarlas?`);
+      if(!seguir) return;
     }
 
     const comentarioSuelto = $('f-input-obs-nuevo').value.trim();
@@ -1605,5 +1885,6 @@
 
 })();
 </script>
+
 </body>
 </html>
