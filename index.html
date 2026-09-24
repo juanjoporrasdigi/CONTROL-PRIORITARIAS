@@ -633,6 +633,19 @@
 (function(){
   "use strict";
 
+  // Diagnóstico: si algo falla al arrancar, se muestra en la pantalla de login en vez de quedarse "muerto".
+  function mostrarErrorInicio(msg){
+    var el=document.getElementById('login-error');
+    if(el){ el.textContent=msg; el.style.display='block'; }
+  }
+  window.addEventListener('error', function(ev){
+    mostrarErrorInicio('Error al cargar la aplicación: ' + (ev && ev.message ? ev.message : 'desconocido'));
+  });
+  if(!window.supabase || !window.supabase.createClient){
+    mostrarErrorInicio('No se ha podido cargar la librería de acceso (Supabase). Suele ser una extensión/bloqueador de anuncios o la protección de rastreo del navegador bloqueando cdn.jsdelivr.net. Desactívala para esta página o prueba en otro navegador.');
+    return;
+  }
+
   // ============================================================
   // CONFIGURACIÓN DE SUPABASE
   // La publishable key es apta para uso en el navegador.
@@ -756,7 +769,10 @@
     if(!email || !password){showAuthError('Introduce email y contraseña.');return;}
     const btn=$('login-btn'); btn.disabled=true; btn.textContent='Entrando...';
     try{
-      const {data,error}=await supabaseClient.auth.signInWithPassword({email,password});
+      const {data,error}=await Promise.race([
+        supabaseClient.auth.signInWithPassword({email,password}),
+        new Promise((_,rej)=>setTimeout(()=>rej(new Error('El servidor no responde. Si usas modo privado o tienes otra pestaña de esta app abierta, ciérrala y recarga esta página.')),20000))
+      ]);
       if(error) throw error;
       await activateAuthenticatedUser(data.user);
     }catch(e){
