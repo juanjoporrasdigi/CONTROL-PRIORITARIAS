@@ -1084,6 +1084,16 @@
     }catch(e){
       console.error(e);
       stopCamStream();
+      // Dejamos visible el motivo del fallo (útil dentro de la app Android, donde no hay consola)
+      let box = $('cam-error');
+      if(!box){
+        box = document.createElement('div');
+        box.id = 'cam-error';
+        box.style.cssText = 'margin-top:6px;font:12px "IBM Plex Mono",monospace;color:#c0392b;word-break:break-word;';
+        $('camera-btn').insertAdjacentElement('afterend', box);
+      }
+      box.textContent = 'Visor de cámara no disponible (' + (e && e.name ? e.name : 'error') + ': ' +
+                        (e && e.message ? e.message : '') + '). Se usa la cámara del sistema.';
       $('camera-input').click(); // plan B: cámara nativa
     }
   }
