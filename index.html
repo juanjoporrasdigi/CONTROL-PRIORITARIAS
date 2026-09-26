@@ -530,7 +530,17 @@
   <div class="modal">
     <div class="modal-head">
       <h2 id="modal-title">Nueva obra</h2>
-      <p id="modal-coords" class="mono"></p>
+      <p id="modal-coords-view" class="mono"></p>
+      <div class="field-row" id="modal-coords-edit" style="display:none;">
+        <div class="field">
+          <label>Latitud</label>
+          <input type="number" step="any" id="f-input-lat" placeholder="36.620000">
+        </div>
+        <div class="field">
+          <label>Longitud</label>
+          <input type="number" step="any" id="f-input-lon" placeholder="-4.750000">
+        </div>
+      </div>
     </div>
     <div class="modal-body">
       <p class="geo-status" id="geo-status"></p>
@@ -1260,7 +1270,23 @@
     resetForm();
     $('delete-btn').style.display = (existing && canDeleteObras()) ? '' : 'none';
     $('modal-title').textContent = existing ? "Editar obra" : "Nueva obra";
-    $('modal-coords').textContent = latlng ? `${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)}` : 'Sin coordenadas';
+
+    const puedeEditarCoords = canDeleteObras();
+    const currentLat = latlng ? latlng.lat : (existing?.lat ?? null);
+    const currentLon = latlng ? latlng.lng : (existing?.lon ?? null);
+    const hayCoords = Number.isFinite(Number(currentLat)) && Number.isFinite(Number(currentLon));
+
+    if(puedeEditarCoords){
+      $('modal-coords-view').style.display = 'none';
+      $('modal-coords-edit').style.display = '';
+      $('f-input-lat').value = hayCoords ? Number(currentLat) : '';
+      $('f-input-lon').value = hayCoords ? Number(currentLon) : '';
+    } else {
+      $('modal-coords-edit').style.display = 'none';
+      $('modal-coords-view').style.display = '';
+      $('modal-coords-view').textContent = hayCoords ? `${Number(currentLat).toFixed(6)}, ${Number(currentLon).toFixed(6)}` : 'Sin coordenadas';
+    }
+
     $('geo-status').textContent = "";
     $('overlay').classList.add('show');
 
@@ -1328,10 +1354,29 @@
     $('save-btn').disabled = true;
     const now = new Date();
     const existingObra = editingId ? obras.find(o => o.id === editingId) : null;
+    const puedeEditarCoords = canDeleteObras();
+    let latFinal = pendingLatLng ? pendingLatLng.lat : (existingObra?.lat ?? null);
+    let lonFinal = pendingLatLng ? pendingLatLng.lng : (existingObra?.lon ?? null);
+    if(puedeEditarCoords){
+      const latInput = $('f-input-lat').value.trim();
+      const lonInput = $('f-input-lon').value.trim();
+      const latNum = Number(latInput), lonNum = Number(lonInput);
+      if(latInput === "" || lonInput === "" || !Number.isFinite(latNum) || !Number.isFinite(lonNum) || Math.abs(latNum) > 90 || Math.abs(lonNum) > 180){
+        alert('Introduce una latitud (entre -90 y 90) y una longitud (entre -180 y 180) válidas. Son obligatorias, no pueden quedar vacías.');
+        $('save-btn').disabled = false;
+        return;
+      }
+      latFinal = latNum;
+      lonFinal = lonNum;
+    } else if(latFinal == null || lonFinal == null){
+      alert('Esta obra no tiene coordenadas y tu perfil no tiene permiso para asignarlas. Pide a un coordinador o superadmin que las añada.');
+      $('save-btn').disabled = false;
+      return;
+    }
     const obra = {
       id: editingId || ('o' + Date.now() + Math.random().toString(36).slice(2,7)),
-      lat: pendingLatLng ? pendingLatLng.lat : (existingObra?.lat ?? null),
-      lon: pendingLatLng ? pendingLatLng.lng : (existingObra?.lon ?? null),
+      lat: latFinal,
+      lon: lonFinal,
       poblacion: $('f-input-poblacion').value.trim(),
       direccion,
       pct: $('f-input-pct').value ? Number($('f-input-pct').value) : null,
